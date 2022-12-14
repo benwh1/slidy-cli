@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 clap = { version = "4.0.29", features = ["derive"] }
 slidy = { path = "../slidy" }
+thiserror = "1.0.37"

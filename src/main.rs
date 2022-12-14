@@ -1,3 +1,4 @@
+pub mod size;
 pub mod state;
 
 use clap::{Parser, Subcommand};

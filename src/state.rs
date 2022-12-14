@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use clap::Subcommand;
 use slidy::puzzle::{
     puzzle::Puzzle,
@@ -5,14 +7,16 @@ use slidy::puzzle::{
     sliding_puzzle::SlidingPuzzle,
 };
 
+use crate::size::Size;
+
 #[derive(Subcommand, Debug)]
 pub enum Command {
     Generate {
         #[clap(short, long, default_value_t = 1)]
         number: u64,
 
-        #[clap(short, long, default_value_t = 4)]
-        size: u32,
+        #[clap(short, long, default_value_t = Size(4, 4), value_parser = Size::from_str)]
+        size: Size,
     },
 }
 
@@ -22,8 +26,8 @@ pub fn run(command: Command) -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-pub fn generate(number: u64, size: u32) -> Result<(), Box<dyn std::error::Error>> {
-    let mut p = Puzzle::new(size as usize, size as usize)?;
+pub fn generate(number: u64, Size(width, height): Size) -> Result<(), Box<dyn std::error::Error>> {
+    let mut p = Puzzle::new(width as usize, height as usize)?;
 
     for _ in 0..number {
         p.reset();
