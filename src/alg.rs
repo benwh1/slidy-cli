@@ -17,14 +17,11 @@ pub enum Command {
     Invert {
         alg: Option<Algorithm>,
     },
-    Prepend {
+    Concat {
         state: Option<Algorithm>,
 
         #[clap(short, long)]
         prefix: Algorithm,
-    },
-    Append {
-        state: Option<Algorithm>,
 
         #[clap(short, long)]
         suffix: Algorithm,
@@ -36,8 +33,11 @@ pub fn run(command: Command) -> Result<(), Box<dyn std::error::Error>> {
         Command::Length { alg } => try_func(length, alg),
         Command::Simplify { alg, verbose } => try_func(|a| simplify(a, verbose), alg),
         Command::Invert { alg } => try_func(invert, alg),
-        Command::Prepend { state, prefix } => try_func(|a| prepend(a, &prefix), state),
-        Command::Append { state, suffix } => try_func(|a| append(a, &suffix), state),
+        Command::Concat {
+            state,
+            prefix,
+            suffix,
+        } => try_func(|a| concat(a, &prefix, &suffix), state),
     }
 }
 
@@ -65,10 +65,6 @@ fn invert(alg: &mut Algorithm) {
     println!("{alg}");
 }
 
-fn prepend(alg: &mut Algorithm, prefix: &Algorithm) {
-    print!("{prefix}{alg}\n");
-}
-
-fn append(alg: &mut Algorithm, suffix: &Algorithm) {
-    print!("{alg}{suffix}\n");
+fn concat(alg: &mut Algorithm, prefix: &Algorithm, suffix: &Algorithm) {
+    print!("{prefix}{alg}{suffix}\n");
 }
