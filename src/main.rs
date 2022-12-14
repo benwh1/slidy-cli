@@ -1,3 +1,4 @@
+pub mod alg;
 pub mod size;
 pub mod state;
 
@@ -19,6 +20,9 @@ struct Args {
 enum Command {
     #[command(subcommand)]
     State(state::Command),
+
+    #[command(subcommand)]
+    Alg(alg::Command),
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -26,5 +30,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match args.command {
         Command::State(c) => state::run(c),
+        Command::Alg(c) => alg::run(c),
     }
 }
