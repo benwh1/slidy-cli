@@ -1,6 +1,7 @@
 pub mod alg;
 pub mod size;
 pub mod state;
+pub mod util;
 
 use clap::{Parser, Subcommand};
 

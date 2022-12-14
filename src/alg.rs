@@ -1,7 +1,7 @@
-use std::str::FromStr;
-
 use clap::Subcommand;
 use slidy::algorithm::algorithm::Algorithm;
+
+use crate::util::try_func;
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
@@ -25,22 +25,6 @@ pub fn run(command: Command) -> Result<(), Box<dyn std::error::Error>> {
         Command::Simplify { alg, verbose } => try_func(|a| simplify(a, verbose), alg),
         Command::Invert { alg } => try_func(invert, alg),
     }
-}
-
-fn try_func<F: Fn(&mut Algorithm)>(
-    f: F,
-    alg: Option<Algorithm>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    if let Some(mut alg) = alg {
-        f(&mut alg);
-    } else {
-        for line in std::io::stdin().lines() {
-            let mut alg = Algorithm::from_str(&line?)?;
-            f(&mut alg);
-        }
-    }
-
-    Ok(())
 }
 
 fn length(alg: &mut Algorithm) {
