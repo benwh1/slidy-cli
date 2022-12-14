@@ -1,3 +1,5 @@
+pub mod state;
+
 use clap::{Parser, Subcommand};
 
 #[derive(Parser, Debug)]
@@ -13,8 +15,15 @@ struct Args {
 }
 
 #[derive(Subcommand, Debug)]
-enum Command {}
+enum Command {
+    #[command(subcommand)]
+    State(state::Command),
+}
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
+
+    match args.command {
+        Command::State(c) => state::run(c),
+    }
 }
