@@ -26,14 +26,14 @@ pub enum Command {
     },
 }
 
-pub fn run(command: Command) -> Result<(), Box<dyn std::error::Error>> {
+pub fn run(command: Command) -> Result<(), Box<dyn Error>> {
     match command {
         Command::Generate { number, size } => generate(number, size),
         Command::Solve { state } => try_func(solve, state),
     }
 }
 
-pub fn generate(number: u64, Size(width, height): Size) -> Result<(), Box<dyn std::error::Error>> {
+pub fn generate(number: u64, Size(width, height): Size) -> Result<(), Box<dyn Error>> {
     let mut p = Puzzle::new(width as usize, height as usize)?;
 
     for _ in 0..number {
