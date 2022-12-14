@@ -15,8 +15,24 @@ pub enum Command {
 
 pub fn run(command: Command) -> Result<(), Box<dyn std::error::Error>> {
     match command {
-        Command::Simplify { alg, verbose } => try_simplify(alg, verbose),
+        Command::Simplify { alg, verbose } => try_func(|a| simplify(a, verbose), alg),
     }
+}
+
+fn try_func<F: Fn(&mut Algorithm)>(
+    f: F,
+    alg: Option<Algorithm>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if let Some(mut alg) = alg {
+        f(&mut alg);
+    } else {
+        for line in std::io::stdin().lines() {
+            let mut alg = Algorithm::from_str(&line?)?;
+            f(&mut alg);
+        }
+    }
+
+    Ok(())
 }
 
 fn simplify(alg: &mut Algorithm, verbose: bool) {
@@ -32,17 +48,4 @@ fn simplify(alg: &mut Algorithm, verbose: bool) {
         let percent = diff as f32 * 100.0 / orig as f32;
         println!("New length: {new} [-{diff}, -{percent:.4}%]",);
     }
-}
-
-fn try_simplify(alg: Option<Algorithm>, verbose: bool) -> Result<(), Box<dyn std::error::Error>> {
-    if let Some(mut alg) = alg {
-        simplify(&mut alg, verbose);
-    } else {
-        for line in std::io::stdin().lines() {
-            let mut a = Algorithm::from_str(&line?)?;
-            simplify(&mut a, verbose);
-        }
-    }
-
-    Ok(())
 }
