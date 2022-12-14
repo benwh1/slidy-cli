@@ -5,6 +5,9 @@ use slidy::algorithm::algorithm::Algorithm;
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
+    Length {
+        alg: Option<Algorithm>,
+    },
     Simplify {
         alg: Option<Algorithm>,
 
@@ -18,6 +21,7 @@ pub enum Command {
 
 pub fn run(command: Command) -> Result<(), Box<dyn std::error::Error>> {
     match command {
+        Command::Length { alg } => try_func(length, alg),
         Command::Simplify { alg, verbose } => try_func(|a| simplify(a, verbose), alg),
         Command::Invert { alg } => try_func(invert, alg),
     }
@@ -37,6 +41,10 @@ fn try_func<F: Fn(&mut Algorithm)>(
     }
 
     Ok(())
+}
+
+fn length(alg: &mut Algorithm) {
+    println!("{}", alg.len());
 }
 
 fn simplify(alg: &mut Algorithm, verbose: bool) {
