@@ -11,11 +11,15 @@ pub enum Command {
         #[clap(short, long)]
         verbose: bool,
     },
+    Invert {
+        alg: Option<Algorithm>,
+    },
 }
 
 pub fn run(command: Command) -> Result<(), Box<dyn std::error::Error>> {
     match command {
         Command::Simplify { alg, verbose } => try_func(|a| simplify(a, verbose), alg),
+        Command::Invert { alg } => try_func(invert, alg),
     }
 }
 
@@ -48,4 +52,9 @@ fn simplify(alg: &mut Algorithm, verbose: bool) {
         let percent = diff as f32 * 100.0 / orig as f32;
         println!("New length: {new} [-{diff}, -{percent:.4}%]",);
     }
+}
+
+fn invert(alg: &mut Algorithm) {
+    alg.invert();
+    println!("{alg}");
 }
