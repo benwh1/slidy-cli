@@ -66,5 +66,5 @@ fn invert(alg: &mut Algorithm) {
 }
 
 fn concat(alg: &mut Algorithm, prefix: &Algorithm, suffix: &Algorithm) {
-    print!("{prefix}{alg}{suffix}\n");
+    println!("{prefix}{alg}{suffix}");
 }
