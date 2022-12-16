@@ -41,6 +41,9 @@ pub enum Command {
     Solve {
         state: Option<Puzzle>,
     },
+    Solvable {
+        state: Option<Puzzle>,
+    },
 }
 
 pub fn run(command: Command) -> Result<(), Box<dyn Error>> {
@@ -69,6 +72,7 @@ pub fn run(command: Command) -> Result<(), Box<dyn Error>> {
             }
         }
         Command::Solve { state } => try_func(solve, state),
+        Command::Solvable { state } => try_func(solvable, state),
     }
 }
 
@@ -94,4 +98,8 @@ pub fn solve(state: &mut Puzzle) -> Result<(), Box<dyn Error>> {
     println!("{a}");
 
     Ok(())
+}
+
+pub fn solvable(state: &mut Puzzle) {
+    println!("{}", state.is_solvable());
 }
