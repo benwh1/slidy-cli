@@ -2,6 +2,7 @@ use std::{error::Error, str::FromStr};
 
 use clap::{ArgGroup, Subcommand};
 use slidy::{
+    algorithm::algorithm::Algorithm,
     puzzle::{
         puzzle::Puzzle,
         scrambler::{RandomMoves, RandomState, Scrambler},
@@ -44,6 +45,12 @@ pub enum Command {
     Solvable {
         state: Option<Puzzle>,
     },
+    Apply {
+        state: Option<Puzzle>,
+
+        #[clap(short, long)]
+        alg: Algorithm,
+    },
 }
 
 pub fn run(command: Command) -> Result<(), Box<dyn Error>> {
@@ -73,6 +80,7 @@ pub fn run(command: Command) -> Result<(), Box<dyn Error>> {
         }
         Command::Solve { state } => try_func(solve, state),
         Command::Solvable { state } => try_func(solvable, state),
+        Command::Apply { state, alg } => try_func(|s| apply(s, &alg), state),
     }
 }
 
@@ -102,4 +110,12 @@ pub fn solve(state: &mut Puzzle) -> Result<(), Box<dyn Error>> {
 
 pub fn solvable(state: &mut Puzzle) {
     println!("{}", state.is_solvable());
+}
+
+pub fn apply(state: &mut Puzzle, alg: &Algorithm) {
+    if state.try_apply_alg(alg) {
+        println!("{state}");
+    } else {
+        println!("Invalid");
+    }
 }
