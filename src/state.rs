@@ -8,7 +8,10 @@ use slidy::{
         scrambler::{RandomMoves, RandomState, Scrambler},
         sliding_puzzle::SlidingPuzzle,
     },
-    solver::{heuristic::ManhattanDistance, solver::Solver},
+    solver::{
+        heuristic::{Heuristic, ManhattanDistance},
+        solver::Solver,
+    },
 };
 
 use crate::{size::Size, util::try_func};
@@ -51,6 +54,9 @@ pub enum Command {
         #[clap(short, long)]
         alg: Algorithm,
     },
+    LowerBound {
+        state: Option<Puzzle>,
+    },
 }
 
 pub fn run(command: Command) -> Result<(), Box<dyn Error>> {
@@ -81,6 +87,7 @@ pub fn run(command: Command) -> Result<(), Box<dyn Error>> {
         Command::Solve { state } => try_func(solve, state),
         Command::Solvable { state } => try_func(solvable, state),
         Command::Apply { state, alg } => try_func(|s| apply(s, &alg), state),
+        Command::LowerBound { state } => try_func(lower_bound, state),
     }
 }
 
@@ -117,5 +124,14 @@ pub fn apply(state: &mut Puzzle, alg: &Algorithm) {
         println!("{state}");
     } else {
         println!("Invalid");
+    }
+}
+
+pub fn lower_bound(state: &mut Puzzle) {
+    if state.is_solvable() {
+        let b: u64 = ManhattanDistance.bound(state);
+        println!("{b}");
+    } else {
+        println!("Unsolvable");
     }
 }
