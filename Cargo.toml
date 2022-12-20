@@ -9,3 +9,7 @@ edition = "2021"
 clap = { version = "4.0.29", features = ["derive"] }
 slidy = { path = "../slidy" }
 thiserror = "1.0.37"
+
+[[bin]]
+name = "slidy"
+path = "src/main.rs"
