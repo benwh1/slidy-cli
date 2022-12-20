@@ -26,6 +26,15 @@ pub enum Command {
         #[clap(short, long)]
         suffix: Algorithm,
     },
+    Format {
+        alg: Option<Algorithm>,
+
+        #[clap(short, long)]
+        long: bool,
+
+        #[clap(short, long)]
+        spaced: bool,
+    },
 }
 
 pub fn run(command: Command) -> Result<(), Box<dyn std::error::Error>> {
@@ -38,6 +47,7 @@ pub fn run(command: Command) -> Result<(), Box<dyn std::error::Error>> {
             prefix,
             suffix,
         } => try_func(|a| concat(a, &prefix, &suffix), alg),
+        Command::Format { alg, long, spaced } => try_func(|a| format(a, long, spaced), alg),
     }
 }
 
@@ -67,4 +77,14 @@ fn invert(alg: &mut Algorithm) {
 
 fn concat(alg: &mut Algorithm, prefix: &Algorithm, suffix: &Algorithm) {
     println!("{prefix}{alg}{suffix}");
+}
+
+fn format(alg: &mut Algorithm, long: bool, spaced: bool) {
+    let s = match (long, spaced) {
+        (true, true) => alg.display_long_spaced().to_string(),
+        (true, false) => alg.display_long_unspaced().to_string(),
+        (false, true) => alg.display_short_spaced().to_string(),
+        (false, false) => alg.display_short_unspaced().to_string(),
+    };
+    println!("{s}");
 }
