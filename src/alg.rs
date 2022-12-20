@@ -18,7 +18,7 @@ pub enum Command {
         alg: Option<Algorithm>,
     },
     Concat {
-        state: Option<Algorithm>,
+        alg: Option<Algorithm>,
 
         #[clap(short, long)]
         prefix: Algorithm,
@@ -34,10 +34,10 @@ pub fn run(command: Command) -> Result<(), Box<dyn std::error::Error>> {
         Command::Simplify { alg, verbose } => try_func(|a| simplify(a, verbose), alg),
         Command::Invert { alg } => try_func(invert, alg),
         Command::Concat {
-            state,
+            alg,
             prefix,
             suffix,
-        } => try_func(|a| concat(a, &prefix, &suffix), state),
+        } => try_func(|a| concat(a, &prefix, &suffix), alg),
     }
 }
 
