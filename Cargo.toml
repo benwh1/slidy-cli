@@ -7,7 +7,9 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.0.29", features = ["derive"] }
+palette = "0.6.1"
 slidy = { path = "../slidy" }
+svg = "0.12.1"
 thiserror = "1.0.37"
 
 [[bin]]

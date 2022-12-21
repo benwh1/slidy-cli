@@ -1,10 +1,18 @@
 use std::{error::Error, str::FromStr};
 
-use clap::{ArgGroup, Subcommand};
+use clap::{ArgGroup, Subcommand, ValueEnum};
+use palette::rgb::Rgba;
 use slidy::{
     algorithm::algorithm::Algorithm,
     puzzle::{
+        color_scheme::{Scheme, SchemeList},
+        coloring::{Coloring, Monochrome, Rainbow, RainbowBright, RainbowBrightFull, RainbowFull},
+        label::{
+            labels::{Label, RowGrids, Rows, SplitSquareFringe, Trivial},
+            scaled::Scaled,
+        },
         puzzle::Puzzle,
+        render::{Renderer, Text},
         scrambler::{RandomMoves, RandomState, Scrambler},
         sliding_puzzle::SlidingPuzzle,
     },
@@ -57,6 +65,34 @@ pub enum Command {
     LowerBound {
         state: Option<Puzzle>,
     },
+    Render {
+        state: Puzzle,
+
+        #[clap(short, long, default_value = "fringe")]
+        label: LabelType,
+
+        #[clap(short, long, default_value = "rainbow-bright-full")]
+        coloring: ColoringType,
+
+        #[clap(short, long)]
+        output: String,
+    },
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+pub enum LabelType {
+    Fringe,
+    Rows,
+    Grids,
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+pub enum ColoringType {
+    None,
+    Rainbow,
+    RainbowFull,
+    RainbowBright,
+    RainbowBrightFull,
 }
 
 pub fn run(command: Command) -> Result<(), Box<dyn Error>> {
@@ -88,6 +124,12 @@ pub fn run(command: Command) -> Result<(), Box<dyn Error>> {
         Command::Solvable { state } => try_func(solvable, state),
         Command::Apply { state, alg } => try_func(|s| apply(s, &alg), state),
         Command::LowerBound { state } => try_func(lower_bound, state),
+        Command::Render {
+            state,
+            label,
+            coloring,
+            output,
+        } => render(&state, label, coloring, &output),
     }
 }
 
@@ -134,4 +176,37 @@ pub fn lower_bound(state: &mut Puzzle) {
     } else {
         println!("Unsolvable");
     }
+}
+
+fn render(
+    state: &Puzzle,
+    label: LabelType,
+    coloring: ColoringType,
+    output: &str,
+) -> Result<(), Box<dyn Error>> {
+    let label: Box<dyn Label> = match label {
+        LabelType::Fringe => Box::new(SplitSquareFringe),
+        LabelType::Rows => Box::new(Rows),
+        LabelType::Grids => Box::new(Scaled::new(RowGrids, (5, 5))?),
+    };
+
+    let coloring: Box<dyn Coloring> = match coloring {
+        ColoringType::None => Box::new(Monochrome::new(Rgba::new(0.0, 0.0, 0.0, 0.0))),
+        ColoringType::Rainbow => Box::new(Rainbow),
+        ColoringType::RainbowFull => Box::new(RainbowFull),
+        ColoringType::RainbowBright => Box::new(RainbowBright),
+        ColoringType::RainbowBrightFull => Box::new(RainbowBrightFull),
+    };
+
+    let schemes = [Scheme::new(label, coloring)];
+    let scheme_list = SchemeList::new(&schemes)?;
+
+    let renderer: Renderer<_, _> = Renderer::with_scheme(&scheme_list).text(Text::with_scheme(
+        Scheme::new(Trivial, Monochrome::new(Rgba::new(0.0, 0.0, 0.0, 1.0))),
+    ));
+
+    let svg = renderer.svg(state)?;
+    svg::save(output, &svg)?;
+
+    Ok(())
 }
