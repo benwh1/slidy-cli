@@ -139,7 +139,7 @@ pub fn run(command: Command) -> Result<(), Box<dyn Error>> {
 pub fn generate(
     number: u64,
     Size(width, height): Size,
-    s: impl Scrambler,
+    s: impl Scrambler<Puzzle, u32>,
 ) -> Result<(), Box<dyn Error>> {
     let mut p = Puzzle::new(width as usize, height as usize)?;
 
