@@ -22,7 +22,10 @@ use slidy::{
     },
 };
 
-use crate::{size::Size, util::try_func};
+use crate::{
+    size::Size,
+    util::{try_func, try_func_once},
+};
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
@@ -66,7 +69,7 @@ pub enum Command {
         state: Option<Puzzle>,
     },
     Render {
-        state: Puzzle,
+        state: Option<Puzzle>,
 
         #[clap(short, long, default_value = "fringe")]
         label: LabelType,
@@ -129,7 +132,7 @@ pub fn run(command: Command) -> Result<(), Box<dyn Error>> {
             label,
             coloring,
             output,
-        } => render(&state, label, coloring, &output),
+        } => try_func_once(|s| render(s, label, coloring, &output), state),
     }
 }
 
