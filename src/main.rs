@@ -1,14 +1,16 @@
+#![feature(int_roundings)]
+
 pub mod size;
 pub mod util;
 
-use std::{error::Error, str::FromStr};
+use std::{error::Error, rc::Rc, str::FromStr};
 
 use clap::{command, ArgGroup, Parser, Subcommand, ValueEnum};
 use palette::rgb::Rgba;
 use slidy::{
     algorithm::algorithm::Algorithm,
     puzzle::{
-        color_scheme::{Scheme, SchemeList},
+        color_scheme::{tiled::Tiled, ColorScheme, Scheme, SchemeList},
         coloring::{Coloring, Monochrome, Rainbow, RainbowBright, RainbowBrightFull, RainbowFull},
         label::{
             labels::{Label, RowGrids, Rows, SplitSquareFringe, Trivial},
@@ -127,7 +129,7 @@ enum Command {
     },
 }
 
-#[derive(Clone, Copy, Debug, ValueEnum)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 pub enum LabelType {
     Fringe,
     Rows,
@@ -190,25 +192,38 @@ pub fn lower_bound(state: &mut Puzzle) {
 
 fn render(
     state: &Puzzle,
-    label: LabelType,
-    coloring: ColoringType,
+    label_type: LabelType,
+    coloring_type: ColoringType,
     output: &str,
 ) -> Result<(), Box<dyn Error>> {
-    let label: Box<dyn Label> = match label {
+    let grid_size = (
+        state.width().div_ceil(2) as u32,
+        state.height().div_ceil(2) as u32,
+    );
+
+    let label: Box<dyn Label> = match label_type {
         LabelType::Fringe => Box::new(SplitSquareFringe),
         LabelType::Rows => Box::new(Rows),
-        LabelType::Grids => Box::new(Scaled::new(RowGrids, (5, 5))?),
+        LabelType::Grids => Box::new(Scaled::new(RowGrids, grid_size)?),
     };
 
-    let coloring: Box<dyn Coloring> = match coloring {
-        ColoringType::None => Box::new(Monochrome::new(Rgba::new(0.0, 0.0, 0.0, 0.0))),
-        ColoringType::Rainbow => Box::new(Rainbow),
-        ColoringType::RainbowFull => Box::new(RainbowFull),
-        ColoringType::RainbowBright => Box::new(RainbowBright),
-        ColoringType::RainbowBrightFull => Box::new(RainbowBrightFull),
+    let coloring: Rc<dyn Coloring> = match coloring_type {
+        ColoringType::None => Rc::new(Monochrome::new(Rgba::new(0.0, 0.0, 0.0, 0.0))),
+        ColoringType::Rainbow => Rc::new(Rainbow),
+        ColoringType::RainbowFull => Rc::new(RainbowFull),
+        ColoringType::RainbowBright => Rc::new(RainbowBright),
+        ColoringType::RainbowBrightFull => Rc::new(RainbowBrightFull),
     };
 
-    let schemes = [Scheme::new(label, coloring)];
+    let mut schemes: Vec<Box<dyn ColorScheme>> =
+        vec![Box::new(Scheme::new(label, coloring.clone()))];
+    if label_type == LabelType::Grids {
+        schemes.push(Box::new(Tiled::new(
+            Scheme::new(SplitSquareFringe, coloring.clone()),
+            grid_size,
+        )?))
+    }
+
     let scheme_list = SchemeList::new(&schemes)?;
 
     let renderer: Renderer<_, _> = Renderer::with_scheme(&scheme_list).text(Text::with_scheme(
