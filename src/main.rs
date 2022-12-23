@@ -1,7 +1,7 @@
 #![feature(int_roundings)]
 
-pub mod size;
-pub mod util;
+mod size;
+mod util;
 
 use std::{error::Error, rc::Rc, str::FromStr};
 
@@ -130,14 +130,14 @@ enum Command {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
-pub enum LabelType {
+enum LabelType {
     Fringe,
     Rows,
     Grids,
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
-pub enum ColoringType {
+enum ColoringType {
     None,
     Rainbow,
     RainbowFull,
@@ -145,7 +145,7 @@ pub enum ColoringType {
     RainbowBrightFull,
 }
 
-pub fn generate(
+fn generate(
     number: u64,
     Size(width, height): Size,
     s: impl Scrambler<Puzzle, u32>,
@@ -161,7 +161,7 @@ pub fn generate(
     Ok(())
 }
 
-pub fn solve(state: &mut Puzzle) -> Result<(), Box<dyn Error>> {
+fn solve(state: &mut Puzzle) -> Result<(), Box<dyn Error>> {
     let mut s = Solver::new(state, &ManhattanDistance);
     let a = s.solve()?;
     println!("{a}");
@@ -169,11 +169,11 @@ pub fn solve(state: &mut Puzzle) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub fn solvable(state: &mut Puzzle) {
+fn solvable(state: &mut Puzzle) {
     println!("{}", state.is_solvable());
 }
 
-pub fn apply(state: &mut Puzzle, alg: &Algorithm) {
+fn apply(state: &mut Puzzle, alg: &Algorithm) {
     if state.try_apply_alg(alg) {
         println!("{state}");
     } else {
@@ -181,7 +181,7 @@ pub fn apply(state: &mut Puzzle, alg: &Algorithm) {
     }
 }
 
-pub fn lower_bound(state: &mut Puzzle) {
+fn lower_bound(state: &mut Puzzle) {
     if state.is_solvable() {
         let b: u64 = ManhattanDistance.bound(state);
         println!("{b}");
