@@ -72,6 +72,9 @@ enum Command {
     },
     Solve {
         state: Option<Puzzle>,
+
+        #[clap(short, long)]
+        verbose: bool,
     },
     Solvable {
         state: Option<Puzzle>,
@@ -161,10 +164,14 @@ fn generate(
     Ok(())
 }
 
-fn solve(state: &mut Puzzle) -> Result<(), Box<dyn Error>> {
+fn solve(state: &mut Puzzle, verbose: bool) -> Result<(), Box<dyn Error>> {
     let mut s = Solver::new(state, &ManhattanDistance);
     let a = s.solve()?;
     println!("{a}");
+
+    if verbose {
+        println!("{} moves", a.len());
+    }
 
     Ok(())
 }
@@ -301,7 +308,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 generate(number, size, RandomState)
             }
         }
-        Command::Solve { state } => try_func(solve, state),
+        Command::Solve { state, verbose } => try_func(|s| solve(s, verbose), state),
         Command::Solvable { state } => try_func(solvable, state),
         Command::Apply { state, alg } => try_func(|s| apply(s, &alg), state),
         Command::LowerBound { state } => try_func(lower_bound, state),
