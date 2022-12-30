@@ -79,6 +79,7 @@ enum Command {
     Solvable {
         state: Option<Puzzle>,
     },
+    #[clap(about = "Applies a fixed algorithm to one or multiple puzzle states")]
     Apply {
         state: Option<Puzzle>,
 
@@ -129,6 +130,17 @@ enum Command {
 
         #[clap(short, long)]
         spaced: bool,
+    },
+    #[clap(about = "Applies one or multiple algorithms to a fixed puzzle state")]
+    #[clap(group(ArgGroup::new("puzzle").required(true)))]
+    ApplyAlgs {
+        alg: Option<Algorithm>,
+
+        #[clap(short = 'p', long, group = "puzzle")]
+        state: Option<Puzzle>,
+
+        #[clap(short = 's', long, group = "puzzle")]
+        size: Option<Size>,
     },
 }
 
@@ -281,6 +293,21 @@ fn format(alg: &mut Algorithm, long: bool, spaced: bool) {
     println!("{s}");
 }
 
+fn apply_algs(
+    alg: &Algorithm,
+    state: Option<Puzzle>,
+    size: Option<Size>,
+) -> Result<(), Box<dyn Error>> {
+    if let Some(mut state) = state {
+        apply(&mut state, alg);
+    } else if let Some(size) = size {
+        let mut state = Puzzle::new(size.0 as usize, size.1 as usize)?;
+        apply(&mut state, alg);
+    }
+
+    Ok(())
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
@@ -327,5 +354,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             suffix,
         } => try_func(|a| concat(a, &prefix, &suffix), alg),
         Command::Format { alg, long, spaced } => try_func(|a| format(a, long, spaced), alg),
+        Command::ApplyAlgs { alg, state, size } => {
+            try_func(|a| apply_algs(a, state.clone(), size), alg)
+        }
     }
 }
