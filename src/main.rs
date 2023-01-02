@@ -142,6 +142,13 @@ enum Command {
         #[clap(short = 's', long, group = "puzzle")]
         size: Option<Size>,
     },
+    #[clap(group(ArgGroup::new("formatter")))]
+    FormatState {
+        state: Option<Puzzle>,
+
+        #[clap(short, long, default_value = "inline")]
+        format: StateFormatter,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
@@ -158,6 +165,12 @@ enum ColoringType {
     RainbowFull,
     RainbowBright,
     RainbowBrightFull,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum StateFormatter {
+    Inline,
+    Grid,
 }
 
 fn generate(
@@ -308,6 +321,13 @@ fn apply_algs(
     Ok(())
 }
 
+fn format_state(state: &Puzzle, formatter: StateFormatter) {
+    match formatter {
+        StateFormatter::Inline => println!("{}", state.display_inline()),
+        StateFormatter::Grid => println!("{}", state.display_grid()),
+    }
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
@@ -357,5 +377,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         Command::ApplyAlgs { alg, state, size } => {
             try_func(|a| apply_algs(a, state.clone(), size), alg)
         }
+        Command::FormatState { state, format } => try_func(|s| format_state(s, format), state),
     }
 }
