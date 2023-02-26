@@ -13,11 +13,11 @@ use slidy::{
         color_scheme::{tiled::Tiled, ColorScheme, Scheme, SchemeList},
         coloring::{Coloring, Monochrome, Rainbow, RainbowBright, RainbowBrightFull, RainbowFull},
         label::{
-            labels::{Label, RowGrids, Rows, SplitSquareFringe, Trivial},
+            labels::{Label, RowGrids, Rows, SplitSquareFringe},
             scaled::Scaled,
         },
         puzzle::Puzzle,
-        render::{Renderer, Text},
+        render::{Renderer, RendererBuilder, Text},
         scrambler::{RandomMoves, RandomState, Scrambler},
         sliding_puzzle::SlidingPuzzle,
     },
@@ -258,11 +258,11 @@ fn render(
 
     let scheme_list = SchemeList::new(&schemes)?;
 
-    let renderer: Renderer<_, _> = Renderer::with_scheme(&scheme_list).text(Text::with_scheme(
-        Scheme::new(Trivial, Monochrome::new(Rgba::new(0.0, 0.0, 0.0, 1.0))),
-    ));
+    let renderer: Renderer<_, _> = RendererBuilder::with_scheme(&scheme_list)
+        .text(Text::default())
+        .build();
 
-    let svg = renderer.svg(state)?;
+    let svg = renderer.render(state)?;
     svg::save(output, &svg)?;
 
     Ok(())
