@@ -91,6 +91,13 @@ enum Command {
         #[clap(short, long, group = "group")]
         alg: Option<Algorithm>,
     },
+    ApplyToSolved {
+        #[clap(short, long)]
+        alg: Option<Algorithm>,
+
+        #[clap(short, long)]
+        size: Size,
+    },
     LowerBound {
         state: Option<Puzzle>,
     },
@@ -300,6 +307,13 @@ fn format(alg: &mut Algorithm, long: bool, spaced: bool) {
     println!("{s}");
 }
 
+fn apply_to_solved(alg: &Algorithm, size: Size) -> Result<(), Box<dyn Error>> {
+    let mut state = Puzzle::new(size.0 as usize, size.1 as usize)?;
+    apply(&mut state, alg);
+
+    Ok(())
+}
+
 fn format_state(state: &Puzzle, formatter: StateFormatter) {
     match formatter {
         StateFormatter::Inline => println!("{}", state.display_inline()),
@@ -345,6 +359,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 Ok(())
             }
         },
+        Command::ApplyToSolved { alg, size } => try_func(|a| apply_to_solved(a, size), alg),
         Command::LowerBound { state } => try_func(lower_bound, state),
         Command::Render {
             state,
