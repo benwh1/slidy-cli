@@ -110,6 +110,9 @@ enum Command {
         #[clap(short, long, default_value = "rainbow-bright-full")]
         coloring: ColoringType,
 
+        #[clap(short, long, default_value = "75.0")]
+        tile_size: f32,
+
         #[clap(short, long)]
         output: String,
     },
@@ -227,6 +230,7 @@ fn render(
     state: &Puzzle,
     label_type: LabelType,
     coloring_type: ColoringType,
+    tile_size: f32,
     output: &str,
 ) -> Result<(), Box<dyn Error>> {
     let grid_size = (
@@ -260,7 +264,8 @@ fn render(
     let scheme_list = SchemeList::new(&schemes)?;
 
     let renderer: Renderer<_, _, _> = RendererBuilder::with_scheme(&scheme_list)
-        .text(Text::default())
+        .text(Text::default().font_size(tile_size * 30.0 / 75.0))
+        .tile_size(tile_size)
         .build();
 
     let svg = renderer.render(state)?;
@@ -365,8 +370,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             state,
             label,
             coloring,
+            tile_size,
             output,
-        } => try_func_once(|s| render(s, label, coloring, &output), state),
+        } => try_func_once(|s| render(s, label, coloring, tile_size, &output), state),
         Command::Length { alg } => try_func(length, alg),
         Command::Simplify { alg, verbose } => try_func(|a| simplify(a, verbose), alg),
         Command::Invert { alg } => try_func(invert, alg),
