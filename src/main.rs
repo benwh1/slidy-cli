@@ -327,6 +327,11 @@ fn format_state(state: &Puzzle, formatter: StateFormatter) {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    #[cfg(unix)]
+    unsafe {
+        libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+    }
+
     let args = Args::parse();
 
     match args.command {
