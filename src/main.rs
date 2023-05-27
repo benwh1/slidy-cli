@@ -176,7 +176,7 @@ enum StateFormatter {
 fn generate(
     number: u64,
     Size(width, height): Size,
-    s: impl Scrambler<Puzzle, u32>,
+    s: impl Scrambler<Puzzle>,
 ) -> Result<(), Box<dyn Error>> {
     let mut p = Puzzle::new(width as usize, height as usize)?;
 
@@ -190,8 +190,8 @@ fn generate(
 }
 
 fn solve(state: &mut Puzzle, verbose: bool) -> Result<(), Box<dyn Error>> {
-    let mut s = Solver::new(state, &ManhattanDistance);
-    let a = s.solve()?;
+    let mut s = Solver::new(&ManhattanDistance);
+    let a = s.solve(state)?;
     println!("{a}");
 
     if verbose {
@@ -252,13 +252,13 @@ fn render(
     if label_type == LabelType::Grids {
         schemes.push(Box::new(Tiled::new(
             Scheme::new(SplitSquareFringe, coloring.clone()),
-            grid_size,
+            (grid_size.0 as usize, grid_size.1 as usize),
         )?))
     }
 
     let scheme_list = SchemeList::new(&schemes)?;
 
-    let renderer: Renderer<_, _> = RendererBuilder::with_scheme(&scheme_list)
+    let renderer: Renderer<_, _, _> = RendererBuilder::with_scheme(&scheme_list)
         .text(Text::default())
         .build();
 
