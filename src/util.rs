@@ -10,10 +10,19 @@ where
     if let Some(mut t) = t {
         f(&mut t);
     } else {
-        for line in std::io::stdin().lines() {
-            let mut t = T::from_str(&line?)?;
-            f(&mut t);
-        }
+        loop_func(f)?;
+    }
+
+    Ok(())
+}
+
+pub fn loop_func<T: FromStr + 'static, R, F: Fn(&mut T) -> R>(f: F) -> Result<(), Box<dyn Error>>
+where
+    <T as FromStr>::Err: Error,
+{
+    for line in std::io::stdin().lines() {
+        let mut t = T::from_str(&line?)?;
+        f(&mut t);
     }
 
     Ok(())

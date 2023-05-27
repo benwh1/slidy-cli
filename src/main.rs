@@ -29,7 +29,7 @@ use slidy::{
 
 use crate::{
     size::Size,
-    util::{try_func, try_func_once},
+    util::{loop_func, try_func, try_func_once},
 };
 
 #[derive(Parser, Debug)]
@@ -79,12 +79,17 @@ enum Command {
     Solvable {
         state: Option<Puzzle>,
     },
-    #[clap(about = "Applies a fixed algorithm to one or multiple puzzle states")]
+    #[clap(
+        about = "Applies algorithms to puzzle states. If only an algorithm is given, puzzle states\
+        are read from stdin. If only a puzzle state is given, algorithms are read from stdin."
+    )]
+    #[clap(group(ArgGroup::new("group").multiple(true).required(true)))]
     Apply {
+        #[clap(short, long, group = "group")]
         state: Option<Puzzle>,
 
-        #[clap(short, long)]
-        alg: Algorithm,
+        #[clap(short, long, group = "group")]
+        alg: Option<Algorithm>,
     },
     LowerBound {
         state: Option<Puzzle>,
@@ -130,17 +135,6 @@ enum Command {
 
         #[clap(short, long)]
         spaced: bool,
-    },
-    #[clap(about = "Applies one or multiple algorithms to a fixed puzzle state")]
-    #[clap(group(ArgGroup::new("puzzle").required(true)))]
-    ApplyAlgs {
-        alg: Option<Algorithm>,
-
-        #[clap(short = 'p', long, group = "puzzle")]
-        state: Option<Puzzle>,
-
-        #[clap(short = 's', long, group = "puzzle")]
-        size: Option<Size>,
     },
     #[clap(group(ArgGroup::new("formatter")))]
     FormatState {
@@ -306,21 +300,6 @@ fn format(alg: &mut Algorithm, long: bool, spaced: bool) {
     println!("{s}");
 }
 
-fn apply_algs(
-    alg: &Algorithm,
-    state: Option<Puzzle>,
-    size: Option<Size>,
-) -> Result<(), Box<dyn Error>> {
-    if let Some(mut state) = state {
-        apply(&mut state, alg);
-    } else if let Some(size) = size {
-        let mut state = Puzzle::new(size.0 as usize, size.1 as usize)?;
-        apply(&mut state, alg);
-    }
-
-    Ok(())
-}
-
 fn format_state(state: &Puzzle, formatter: StateFormatter) {
     match formatter {
         StateFormatter::Inline => println!("{}", state.display_inline()),
@@ -357,7 +336,15 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         Command::Solve { state, verbose } => try_func(|s| solve(s, verbose), state),
         Command::Solvable { state } => try_func(solvable, state),
-        Command::Apply { state, alg } => try_func(|s| apply(s, &alg), state),
+        Command::Apply { state, alg } => match (state, alg) {
+            (None, None) => unreachable!(),
+            (None, Some(alg)) => loop_func(|s| apply(s, &alg)),
+            (Some(state), None) => loop_func(|a| apply(&mut state.clone(), a)),
+            (Some(mut state), Some(alg)) => {
+                apply(&mut state, &alg);
+                Ok(())
+            }
+        },
         Command::LowerBound { state } => try_func(lower_bound, state),
         Command::Render {
             state,
@@ -374,9 +361,6 @@ fn main() -> Result<(), Box<dyn Error>> {
             suffix,
         } => try_func(|a| concat(a, &prefix, &suffix), alg),
         Command::Format { alg, long, spaced } => try_func(|a| format(a, long, spaced), alg),
-        Command::ApplyAlgs { alg, state, size } => {
-            try_func(|a| apply_algs(a, state.clone(), size), alg)
-        }
         Command::FormatState { state, format } => try_func(|s| format_state(s, format), state),
     }
 }
