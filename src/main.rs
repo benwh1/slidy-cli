@@ -46,6 +46,7 @@ struct Args {
 
 #[derive(Subcommand, Debug)]
 enum Command {
+    #[clap(about = "Generates random scrambles")]
     #[clap(group(ArgGroup::new("scrambler")))]
     #[clap(group(ArgGroup::new("scrambler_random_moves").requires("random_moves").multiple(true)))]
     Generate {
@@ -70,17 +71,17 @@ enum Command {
         #[clap(short = 'i', long, requires = "random_moves")]
         allow_illegal_moves: bool,
     },
+    #[clap(about = "Finds one optimal solution to a puzzle state")]
     Solve {
         state: Option<Puzzle>,
 
         #[clap(short, long)]
         verbose: bool,
     },
-    Solvable {
-        state: Option<Puzzle>,
-    },
+    #[clap(about = "Checks if puzzle states are solvable")]
+    Solvable { state: Option<Puzzle> },
     #[clap(
-        about = "Applies algorithms to puzzle states. If only an algorithm is given, puzzle states\
+        about = "Applies algorithms to puzzle states. If only an algorithm is given, puzzle states \
         are read from stdin. If only a puzzle state is given, algorithms are read from stdin."
     )]
     #[clap(group(ArgGroup::new("group").multiple(true).required(true)))]
@@ -91,6 +92,7 @@ enum Command {
         #[clap(short, long, group = "group")]
         alg: Option<Algorithm>,
     },
+    #[clap(about = "Applies algorithms to the solved state")]
     ApplyToSolved {
         #[clap(short, long)]
         alg: Option<Algorithm>,
@@ -98,9 +100,12 @@ enum Command {
         #[clap(short, long)]
         size: Size,
     },
-    LowerBound {
-        state: Option<Puzzle>,
-    },
+    #[clap(
+        about = "Prints the lower bound on the optimal solution length using the Manhattan \
+        distance heuristic."
+    )]
+    LowerBound { state: Option<Puzzle> },
+    #[clap(about = "Creates an SVG image of a puzzle state")]
     Render {
         state: Option<Puzzle>,
 
@@ -116,18 +121,18 @@ enum Command {
         #[clap(short, long)]
         output: String,
     },
-    Length {
-        alg: Option<Algorithm>,
-    },
+    #[clap(about = "Prints the length of an algorithm in single tile moves")]
+    Length { alg: Option<Algorithm> },
+    #[clap(about = "Simplifies algorithms by combining consecutive moves when possible")]
     Simplify {
         alg: Option<Algorithm>,
 
         #[clap(short, long)]
         verbose: bool,
     },
-    Invert {
-        alg: Option<Algorithm>,
-    },
+    #[clap(about = "Prints the inverse of an algorithm")]
+    Invert { alg: Option<Algorithm> },
+    #[clap(about = "Appends a prefix or suffix to an algorithm")]
     Concat {
         alg: Option<Algorithm>,
 
@@ -137,6 +142,7 @@ enum Command {
         #[clap(short, long)]
         suffix: Algorithm,
     },
+    #[clap(about = "Formats algorithms using long or short notation, with or without spaces")]
     Format {
         alg: Option<Algorithm>,
 
@@ -146,6 +152,7 @@ enum Command {
         #[clap(short, long)]
         spaced: bool,
     },
+    #[clap(about = "Formats puzzle states inline or in a grid layout")]
     #[clap(group(ArgGroup::new("formatter")))]
     FormatState {
         state: Option<Puzzle>,
