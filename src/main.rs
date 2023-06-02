@@ -162,6 +162,17 @@ enum Command {
         verbose: bool,
     },
 
+    #[clap(about = "Prints a sub-algorithm between two moves")]
+    Slice {
+        alg: Option<Algorithm>,
+
+        #[clap(short, long, default_value = "0")]
+        start: u32,
+
+        #[clap(short, long)]
+        end: Option<u32>,
+    },
+
     #[clap(about = "Checks if puzzle states are solvable")]
     Solvable { state: Option<Puzzle> },
 
@@ -329,6 +340,14 @@ fn simplify(alg: &mut Algorithm, verbose: bool) {
     }
 }
 
+fn slice(alg: &mut Algorithm, start: u32, end: Option<u32>) -> Result<(), Box<dyn Error>> {
+    let end = end.unwrap_or(alg.len());
+    let slice = alg.try_slice(start..end)?;
+    println!("{slice}");
+
+    Ok(())
+}
+
 fn solvable(state: &mut Puzzle) {
     println!("{}", state.is_solvable());
 }
@@ -405,6 +424,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             output,
         } => try_func_once(|s| render(s, label, coloring, tile_size, &output), state),
         Command::Simplify { alg, verbose } => try_func(|a| simplify(a, verbose), alg),
+        Command::Slice { alg, start, end } => try_func(|a| slice(a, start, end), alg),
         Command::Solvable { state } => try_func(solvable, state),
         Command::Solve { state, verbose } => try_func(|s| solve(s, verbose), state),
     }
