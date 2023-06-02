@@ -137,6 +137,17 @@ enum Command {
     )]
     LowerBound { state: Option<Puzzle> },
 
+    #[clap(
+        about = "Attempts to find a shorter equivalent algorithm by optimally solving all
+        sub-algorithms of the given length"
+    )]
+    Optimize {
+        alg: Option<Algorithm>,
+
+        #[clap(short, long)]
+        length: u32,
+    },
+
     #[clap(about = "Creates an SVG image of a puzzle state")]
     Render {
         state: Option<Puzzle>,
@@ -275,6 +286,38 @@ fn lower_bound(state: &mut Puzzle) {
     } else {
         println!("Unsolvable");
     }
+}
+
+fn optimize(alg: &mut Algorithm, length: u32) -> Result<(), Box<dyn Error>> {
+    let mut idx = 0;
+    while idx + length <= alg.len() {
+        let slice = alg.try_slice(idx..idx + length)?;
+        let Some((w, h)) = slice.min_applicable_size() else {
+            idx += 1;
+            continue;
+        };
+        let mut puzzle = Puzzle::new(w, h)?;
+        puzzle.apply_alg(&slice);
+
+        let mut solver = Solver::new(&ManhattanDistance);
+        let solution = solver.solve(&puzzle)?;
+
+        if solution.len() == length {
+            idx += 1;
+        } else {
+            let mut start = Algorithm::from(alg.try_slice(0..idx)?);
+            let middle = solution.inverse();
+            let end = Algorithm::from(alg.try_slice(idx + length..alg.len())?);
+            start += middle;
+            start += end;
+
+            *alg = start;
+        }
+    }
+
+    println!("{alg}");
+
+    Ok(())
 }
 
 fn render(
@@ -416,6 +459,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         Command::Invert { alg } => try_func(invert, alg),
         Command::Length { alg } => try_func(length, alg),
         Command::LowerBound { state } => try_func(lower_bound, state),
+        Command::Optimize { alg, length } => try_func(|a| optimize(a, length), alg),
         Command::Render {
             state,
             label,
