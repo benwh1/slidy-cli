@@ -46,6 +46,59 @@ struct Args {
 
 #[derive(Subcommand, Debug)]
 enum Command {
+    #[clap(
+        about = "Applies algorithms to puzzle states. If only an algorithm is given, puzzle states \
+        are read from stdin. If only a puzzle state is given, algorithms are read from stdin."
+    )]
+    #[clap(group(ArgGroup::new("group").multiple(true).required(true)))]
+    Apply {
+        #[clap(short, long, group = "group")]
+        state: Option<Puzzle>,
+
+        #[clap(short, long, group = "group")]
+        alg: Option<Algorithm>,
+    },
+
+    #[clap(about = "Applies algorithms to the solved state")]
+    ApplyToSolved {
+        #[clap(short, long)]
+        alg: Option<Algorithm>,
+
+        #[clap(short, long)]
+        size: Size,
+    },
+
+    #[clap(about = "Appends a prefix or suffix to an algorithm")]
+    Concat {
+        alg: Option<Algorithm>,
+
+        #[clap(short, long)]
+        prefix: Algorithm,
+
+        #[clap(short, long)]
+        suffix: Algorithm,
+    },
+
+    #[clap(about = "Formats algorithms using long or short notation, with or without spaces")]
+    Format {
+        alg: Option<Algorithm>,
+
+        #[clap(short, long)]
+        long: bool,
+
+        #[clap(short, long)]
+        spaced: bool,
+    },
+
+    #[clap(about = "Formats puzzle states inline or in a grid layout")]
+    #[clap(group(ArgGroup::new("formatter")))]
+    FormatState {
+        state: Option<Puzzle>,
+
+        #[clap(short, long, default_value = "inline")]
+        format: StateFormatter,
+    },
+
     #[clap(about = "Generates random scrambles")]
     #[clap(group(ArgGroup::new("scrambler")))]
     #[clap(group(ArgGroup::new("scrambler_random_moves").requires("random_moves").multiple(true)))]
@@ -71,40 +124,19 @@ enum Command {
         #[clap(short = 'i', long, requires = "random_moves")]
         allow_illegal_moves: bool,
     },
-    #[clap(about = "Finds one optimal solution to a puzzle state")]
-    Solve {
-        state: Option<Puzzle>,
 
-        #[clap(short, long)]
-        verbose: bool,
-    },
-    #[clap(about = "Checks if puzzle states are solvable")]
-    Solvable { state: Option<Puzzle> },
-    #[clap(
-        about = "Applies algorithms to puzzle states. If only an algorithm is given, puzzle states \
-        are read from stdin. If only a puzzle state is given, algorithms are read from stdin."
-    )]
-    #[clap(group(ArgGroup::new("group").multiple(true).required(true)))]
-    Apply {
-        #[clap(short, long, group = "group")]
-        state: Option<Puzzle>,
+    #[clap(about = "Prints the inverse of an algorithm")]
+    Invert { alg: Option<Algorithm> },
 
-        #[clap(short, long, group = "group")]
-        alg: Option<Algorithm>,
-    },
-    #[clap(about = "Applies algorithms to the solved state")]
-    ApplyToSolved {
-        #[clap(short, long)]
-        alg: Option<Algorithm>,
+    #[clap(about = "Prints the length of an algorithm in single tile moves")]
+    Length { alg: Option<Algorithm> },
 
-        #[clap(short, long)]
-        size: Size,
-    },
     #[clap(
         about = "Prints the lower bound on the optimal solution length using the Manhattan \
         distance heuristic."
     )]
     LowerBound { state: Option<Puzzle> },
+
     #[clap(about = "Creates an SVG image of a puzzle state")]
     Render {
         state: Option<Puzzle>,
@@ -121,8 +153,7 @@ enum Command {
         #[clap(short, long)]
         output: String,
     },
-    #[clap(about = "Prints the length of an algorithm in single tile moves")]
-    Length { alg: Option<Algorithm> },
+
     #[clap(about = "Simplifies algorithms by combining consecutive moves when possible")]
     Simplify {
         alg: Option<Algorithm>,
@@ -130,35 +161,16 @@ enum Command {
         #[clap(short, long)]
         verbose: bool,
     },
-    #[clap(about = "Prints the inverse of an algorithm")]
-    Invert { alg: Option<Algorithm> },
-    #[clap(about = "Appends a prefix or suffix to an algorithm")]
-    Concat {
-        alg: Option<Algorithm>,
 
-        #[clap(short, long)]
-        prefix: Algorithm,
+    #[clap(about = "Checks if puzzle states are solvable")]
+    Solvable { state: Option<Puzzle> },
 
-        #[clap(short, long)]
-        suffix: Algorithm,
-    },
-    #[clap(about = "Formats algorithms using long or short notation, with or without spaces")]
-    Format {
-        alg: Option<Algorithm>,
-
-        #[clap(short, long)]
-        long: bool,
-
-        #[clap(short, long)]
-        spaced: bool,
-    },
-    #[clap(about = "Formats puzzle states inline or in a grid layout")]
-    #[clap(group(ArgGroup::new("formatter")))]
-    FormatState {
+    #[clap(about = "Finds one optimal solution to a puzzle state")]
+    Solve {
         state: Option<Puzzle>,
 
-        #[clap(short, long, default_value = "inline")]
-        format: StateFormatter,
+        #[clap(short, long)]
+        verbose: bool,
     },
 }
 
@@ -184,6 +196,42 @@ enum StateFormatter {
     Grid,
 }
 
+fn apply(state: &mut Puzzle, alg: &Algorithm) {
+    if state.try_apply_alg(alg) {
+        println!("{state}");
+    } else {
+        println!("Invalid");
+    }
+}
+
+fn apply_to_solved(alg: &Algorithm, size: Size) -> Result<(), Box<dyn Error>> {
+    let mut state = Puzzle::new(size.0 as usize, size.1 as usize)?;
+    apply(&mut state, alg);
+
+    Ok(())
+}
+
+fn concat(alg: &mut Algorithm, prefix: &Algorithm, suffix: &Algorithm) {
+    println!("{prefix}{alg}{suffix}");
+}
+
+fn format(alg: &mut Algorithm, long: bool, spaced: bool) {
+    let s = match (long, spaced) {
+        (true, true) => alg.display_long_spaced().to_string(),
+        (true, false) => alg.display_long_unspaced().to_string(),
+        (false, true) => alg.display_short_spaced().to_string(),
+        (false, false) => alg.display_short_unspaced().to_string(),
+    };
+    println!("{s}");
+}
+
+fn format_state(state: &Puzzle, formatter: StateFormatter) {
+    match formatter {
+        StateFormatter::Inline => println!("{}", state.display_inline()),
+        StateFormatter::Grid => println!("{}", state.display_grid()),
+    }
+}
+
 fn generate(
     number: u64,
     Size(width, height): Size,
@@ -200,28 +248,13 @@ fn generate(
     Ok(())
 }
 
-fn solve(state: &mut Puzzle, verbose: bool) -> Result<(), Box<dyn Error>> {
-    let mut s = Solver::new(&ManhattanDistance);
-    let a = s.solve(state)?;
-    println!("{a}");
-
-    if verbose {
-        println!("{} moves", a.len());
-    }
-
-    Ok(())
+fn invert(alg: &mut Algorithm) {
+    alg.invert();
+    println!("{alg}");
 }
 
-fn solvable(state: &mut Puzzle) {
-    println!("{}", state.is_solvable());
-}
-
-fn apply(state: &mut Puzzle, alg: &Algorithm) {
-    if state.try_apply_alg(alg) {
-        println!("{state}");
-    } else {
-        println!("Invalid");
-    }
+fn length(alg: &mut Algorithm) {
+    println!("{}", alg.len());
 }
 
 fn lower_bound(state: &mut Puzzle) {
@@ -281,10 +314,6 @@ fn render(
     Ok(())
 }
 
-fn length(alg: &mut Algorithm) {
-    println!("{}", alg.len());
-}
-
 fn simplify(alg: &mut Algorithm, verbose: bool) {
     let orig = alg.len();
     alg.simplify();
@@ -300,37 +329,20 @@ fn simplify(alg: &mut Algorithm, verbose: bool) {
     }
 }
 
-fn invert(alg: &mut Algorithm) {
-    alg.invert();
-    println!("{alg}");
+fn solvable(state: &mut Puzzle) {
+    println!("{}", state.is_solvable());
 }
 
-fn concat(alg: &mut Algorithm, prefix: &Algorithm, suffix: &Algorithm) {
-    println!("{prefix}{alg}{suffix}");
-}
+fn solve(state: &mut Puzzle, verbose: bool) -> Result<(), Box<dyn Error>> {
+    let mut s = Solver::new(&ManhattanDistance);
+    let a = s.solve(state)?;
+    println!("{a}");
 
-fn format(alg: &mut Algorithm, long: bool, spaced: bool) {
-    let s = match (long, spaced) {
-        (true, true) => alg.display_long_spaced().to_string(),
-        (true, false) => alg.display_long_unspaced().to_string(),
-        (false, true) => alg.display_short_spaced().to_string(),
-        (false, false) => alg.display_short_unspaced().to_string(),
-    };
-    println!("{s}");
-}
-
-fn apply_to_solved(alg: &Algorithm, size: Size) -> Result<(), Box<dyn Error>> {
-    let mut state = Puzzle::new(size.0 as usize, size.1 as usize)?;
-    apply(&mut state, alg);
+    if verbose {
+        println!("{} moves", a.len());
+    }
 
     Ok(())
-}
-
-fn format_state(state: &Puzzle, formatter: StateFormatter) {
-    match formatter {
-        StateFormatter::Inline => println!("{}", state.display_inline()),
-        StateFormatter::Grid => println!("{}", state.display_grid()),
-    }
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -342,6 +354,23 @@ fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
     match args.command {
+        Command::Apply { state, alg } => match (state, alg) {
+            (None, None) => unreachable!(),
+            (None, Some(alg)) => loop_func(|s| apply(s, &alg)),
+            (Some(state), None) => loop_func(|a| apply(&mut state.clone(), a)),
+            (Some(mut state), Some(alg)) => {
+                apply(&mut state, &alg);
+                Ok(())
+            }
+        },
+        Command::ApplyToSolved { alg, size } => try_func(|a| apply_to_solved(a, size), alg),
+        Command::Concat {
+            alg,
+            prefix,
+            suffix,
+        } => try_func(|a| concat(a, &prefix, &suffix), alg),
+        Command::Format { alg, long, spaced } => try_func(|a| format(a, long, spaced), alg),
+        Command::FormatState { state, format } => try_func(|s| format_state(s, format), state),
         Command::Generate {
             number,
             size,
@@ -365,18 +394,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                 generate(number, size, RandomState)
             }
         }
-        Command::Solve { state, verbose } => try_func(|s| solve(s, verbose), state),
-        Command::Solvable { state } => try_func(solvable, state),
-        Command::Apply { state, alg } => match (state, alg) {
-            (None, None) => unreachable!(),
-            (None, Some(alg)) => loop_func(|s| apply(s, &alg)),
-            (Some(state), None) => loop_func(|a| apply(&mut state.clone(), a)),
-            (Some(mut state), Some(alg)) => {
-                apply(&mut state, &alg);
-                Ok(())
-            }
-        },
-        Command::ApplyToSolved { alg, size } => try_func(|a| apply_to_solved(a, size), alg),
+        Command::Invert { alg } => try_func(invert, alg),
+        Command::Length { alg } => try_func(length, alg),
         Command::LowerBound { state } => try_func(lower_bound, state),
         Command::Render {
             state,
@@ -385,15 +404,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             tile_size,
             output,
         } => try_func_once(|s| render(s, label, coloring, tile_size, &output), state),
-        Command::Length { alg } => try_func(length, alg),
         Command::Simplify { alg, verbose } => try_func(|a| simplify(a, verbose), alg),
-        Command::Invert { alg } => try_func(invert, alg),
-        Command::Concat {
-            alg,
-            prefix,
-            suffix,
-        } => try_func(|a| concat(a, &prefix, &suffix), alg),
-        Command::Format { alg, long, spaced } => try_func(|a| format(a, long, spaced), alg),
-        Command::FormatState { state, format } => try_func(|s| format_state(s, format), state),
+        Command::Solvable { state } => try_func(solvable, state),
+        Command::Solve { state, verbose } => try_func(|s| solve(s, verbose), state),
     }
 }
