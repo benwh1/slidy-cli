@@ -48,7 +48,7 @@ struct Args {
 enum Command {
     #[clap(
         about = "Applies algorithms to puzzle states. If only an algorithm is given, puzzle states \
-        are read from stdin. If only a puzzle state is given, algorithms are read from stdin."
+        are read from stdin. If only a puzzle state is given, algorithms are read from stdin"
     )]
     #[clap(group(ArgGroup::new("group").multiple(true).required(true)))]
     Apply {
@@ -133,7 +133,7 @@ enum Command {
 
     #[clap(
         about = "Prints the lower bound on the optimal solution length using the Manhattan \
-        distance heuristic."
+        distance heuristic"
     )]
     LowerBound { state: Option<Puzzle> },
 
