@@ -129,7 +129,12 @@ enum Command {
     Invert { alg: Option<Algorithm> },
 
     #[clap(about = "Prints the length of an algorithm in single tile moves")]
-    Length { alg: Option<Algorithm> },
+    Length {
+        alg: Option<Algorithm>,
+
+        #[clap(short, long, default_value = "stm")]
+        metric: Metric,
+    },
 
     #[clap(
         about = "Prints the lower bound on the optimal solution length using the Manhattan \
@@ -218,6 +223,12 @@ enum StateFormatter {
     Grid,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum Metric {
+    Stm,
+    Mtm,
+}
+
 fn apply(state: &mut Puzzle, alg: &Algorithm) {
     if state.try_apply_alg(alg) {
         println!("{state}");
@@ -275,8 +286,12 @@ fn invert(alg: &mut Algorithm) {
     println!("{alg}");
 }
 
-fn length(alg: &mut Algorithm) {
-    println!("{}", alg.len_stm());
+fn length(alg: &mut Algorithm, metric: Metric) {
+    let len = match metric {
+        Metric::Stm => alg.len_stm(),
+        Metric::Mtm => alg.len_mtm(),
+    };
+    println!("{len}");
 }
 
 fn lower_bound(state: &mut Puzzle) {
@@ -457,7 +472,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         }
         Command::Invert { alg } => try_func(invert, alg),
-        Command::Length { alg } => try_func(length, alg),
+        Command::Length { alg, metric } => try_func(|a| length(a, metric), alg),
         Command::LowerBound { state } => try_func(lower_bound, state),
         Command::Optimize { alg, length } => try_func(|a| optimize(a, length), alg),
         Command::Render {
