@@ -138,7 +138,7 @@ enum Command {
     LowerBound { state: Option<Puzzle> },
 
     #[clap(
-        about = "Attempts to find a shorter equivalent algorithm by optimally solving all
+        about = "Attempts to find a shorter equivalent algorithm by optimally solving all \
         sub-algorithms of the given length"
     )]
     Optimize {
