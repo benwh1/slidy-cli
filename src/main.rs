@@ -276,7 +276,7 @@ fn invert(alg: &mut Algorithm) {
 }
 
 fn length(alg: &mut Algorithm) {
-    println!("{}", alg.len());
+    println!("{}", alg.len_stm());
 }
 
 fn lower_bound(state: &mut Puzzle) {
@@ -290,7 +290,7 @@ fn lower_bound(state: &mut Puzzle) {
 
 fn optimize(alg: &mut Algorithm, length: u32) -> Result<(), Box<dyn Error>> {
     let mut idx = 0;
-    while idx + length <= alg.len() {
+    while idx + length <= alg.len_stm() {
         let slice = alg.try_slice(idx..idx + length)?;
         let Some((w, h)) = slice.min_applicable_size() else {
             idx += 1;
@@ -302,12 +302,12 @@ fn optimize(alg: &mut Algorithm, length: u32) -> Result<(), Box<dyn Error>> {
         let mut solver = Solver::new(&ManhattanDistance);
         let solution = solver.solve(&puzzle)?;
 
-        if solution.len() == length {
+        if solution.len_stm() == length {
             idx += 1;
         } else {
             let mut start = Algorithm::from(alg.try_slice(0..idx)?);
             let middle = solution.inverse();
-            let end = Algorithm::from(alg.try_slice(idx + length..alg.len())?);
+            let end = Algorithm::from(alg.try_slice(idx + length..alg.len_stm())?);
             start += middle;
             start += end;
 
@@ -369,9 +369,9 @@ fn render(
 }
 
 fn simplify(alg: &mut Algorithm, verbose: bool) {
-    let orig = alg.len();
+    let orig = alg.len_stm();
     alg.simplify();
-    let new = alg.len();
+    let new = alg.len_stm();
 
     println!("{alg}");
     if verbose {
@@ -384,7 +384,7 @@ fn simplify(alg: &mut Algorithm, verbose: bool) {
 }
 
 fn slice(alg: &mut Algorithm, start: u32, end: Option<u32>) -> Result<(), Box<dyn Error>> {
-    let end = end.unwrap_or(alg.len());
+    let end = end.unwrap_or(alg.len_stm());
     let slice = alg.try_slice(start..end)?;
     println!("{slice}");
 
@@ -401,7 +401,7 @@ fn solve(state: &mut Puzzle, verbose: bool) -> Result<(), Box<dyn Error>> {
     println!("{a}");
 
     if verbose {
-        println!("{} moves", a.len());
+        println!("{} moves", a.len_stm());
     }
 
     Ok(())
