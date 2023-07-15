@@ -1,6 +1,5 @@
 #![feature(int_roundings)]
 
-mod size;
 mod util;
 
 use std::{error::Error, rc::Rc, str::FromStr};
@@ -19,6 +18,7 @@ use slidy::{
         puzzle::Puzzle,
         render::{Renderer, RendererBuilder, Text},
         scrambler::{RandomMoves, RandomState, Scrambler},
+        size::Size,
         sliding_puzzle::SlidingPuzzle,
     },
     solver::{
@@ -27,10 +27,7 @@ use slidy::{
     },
 };
 
-use crate::{
-    size::Size,
-    util::{loop_func, try_func, try_func_once},
-};
+use crate::util::{loop_func, try_func, try_func_once};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -106,7 +103,7 @@ enum Command {
         #[clap(short, long, default_value_t = 1)]
         number: u64,
 
-        #[clap(short, long, default_value_t = Size(4, 4), value_parser = Size::from_str)]
+        #[clap(short, long, default_value_t = Size::new(4, 4).unwrap(), value_parser = Size::from_str)]
         size: Size,
 
         #[clap(long, group = "scrambler", default_value_t = true)]
@@ -238,7 +235,7 @@ fn apply(state: &mut Puzzle, alg: &Algorithm) {
 }
 
 fn apply_to_solved(alg: &Algorithm, size: Size) -> Result<(), Box<dyn Error>> {
-    let mut state = Puzzle::new(size.0 as usize, size.1 as usize)?;
+    let mut state = Puzzle::new(size);
     apply(&mut state, alg);
 
     Ok(())
@@ -265,12 +262,8 @@ fn format_state(state: &Puzzle, formatter: StateFormatter) {
     }
 }
 
-fn generate(
-    number: u64,
-    Size(width, height): Size,
-    s: impl Scrambler<Puzzle>,
-) -> Result<(), Box<dyn Error>> {
-    let mut p = Puzzle::new(width as usize, height as usize)?;
+fn generate(number: u64, size: Size, s: impl Scrambler<Puzzle>) -> Result<(), Box<dyn Error>> {
+    let mut p = Puzzle::new(size);
 
     for _ in 0..number {
         p.reset();
@@ -307,11 +300,11 @@ fn optimize(alg: &mut Algorithm, length: u32) -> Result<(), Box<dyn Error>> {
     let mut idx = 0;
     while idx + length <= alg.len_stm() {
         let slice = alg.try_slice(idx..idx + length)?;
-        let Some((w, h)) = slice.min_applicable_size() else {
+        let Some(size) = slice.min_applicable_size() else {
             idx += 1;
             continue;
         };
-        let mut puzzle = Puzzle::new(w, h)?;
+        let mut puzzle = Puzzle::new(size);
         puzzle.apply_alg(&slice);
 
         let mut solver = Solver::new(&ManhattanDistance);
@@ -342,10 +335,10 @@ fn render(
     tile_size: f32,
     output: &str,
 ) -> Result<(), Box<dyn Error>> {
-    let grid_size = (
-        state.width().div_ceil(2) as u32,
-        state.height().div_ceil(2) as u32,
-    );
+    let grid_size = {
+        let (width, height) = state.size().into();
+        (width.div_ceil(2) as u32, height.div_ceil(2) as u32)
+    };
 
     let label: Box<dyn Label> = match label_type {
         LabelType::Fringe => Box::new(SplitSquareFringe),
