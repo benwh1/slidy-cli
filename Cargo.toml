@@ -10,7 +10,7 @@ clap = { version = "4.3.12", features = ["derive"] }
 libc = "0.2.147"
 palette = "0.6.1"
 slidy = { path = "../slidy" }
-svg = "0.12.1"
+svg = "0.13.1"
 thiserror = "1.0.43"
 
 [[bin]]
