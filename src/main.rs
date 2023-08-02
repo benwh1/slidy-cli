@@ -357,10 +357,12 @@ fn render(
     let mut schemes: Vec<Box<dyn ColorScheme>> =
         vec![Box::new(Scheme::new(label, coloring.clone()))];
     if label_type == LabelType::Grids {
+        let grid_size = Size::new(grid_size.0 as usize, grid_size.1 as usize)?;
+
         schemes.push(Box::new(Tiled::new(
             Scheme::new(SplitSquareFringe, coloring.clone()),
-            (grid_size.0 as usize, grid_size.1 as usize),
-        )?))
+            grid_size,
+        )))
     }
 
     let scheme_list = SchemeList::new(&schemes)?;
