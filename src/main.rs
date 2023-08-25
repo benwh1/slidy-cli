@@ -280,7 +280,7 @@ fn invert(alg: &mut Algorithm) {
 }
 
 fn length(alg: &mut Algorithm, metric: Metric) {
-    let len = match metric {
+    let len: u32 = match metric {
         Metric::Stm => alg.len_stm(),
         Metric::Mtm => alg.len_mtm(),
     };
@@ -310,7 +310,7 @@ fn optimize(alg: &mut Algorithm, length: u32) -> Result<(), Box<dyn Error>> {
         let mut solver = Solver::new(&ManhattanDistance);
         let solution = solver.solve(&puzzle)?;
 
-        if solution.len_stm() == length {
+        if solution.len_stm::<u32>() == length {
             idx += 1;
         } else {
             let mut start = Algorithm::from(alg.try_slice(0..idx)?);
@@ -379,9 +379,9 @@ fn render(
 }
 
 fn simplify(alg: &mut Algorithm, verbose: bool) {
-    let orig = alg.len_stm();
+    let orig: u32 = alg.len_stm();
     alg.simplify();
-    let new = alg.len_stm();
+    let new: u32 = alg.len_stm();
 
     println!("{alg}");
     if verbose {
@@ -411,7 +411,7 @@ fn solve(state: &mut Puzzle, verbose: bool) -> Result<(), Box<dyn Error>> {
     println!("{a}");
 
     if verbose {
-        println!("{} moves", a.len_stm());
+        println!("{} moves", a.len_stm::<u32>());
     }
 
     Ok(())
