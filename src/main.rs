@@ -12,7 +12,7 @@ use slidy::{
         color_scheme::{tiled::Tiled, ColorScheme, Scheme, SchemeList},
         coloring::{Coloring, Monochrome, Rainbow, RainbowBright, RainbowBrightFull, RainbowFull},
         label::{
-            labels::{Label, RowGrids, Rows, SplitSquareFringe},
+            labels::{Fringe, Label, RowGrids, Rows, SplitFringe},
             scaled::Scaled,
         },
         puzzle::Puzzle,
@@ -205,6 +205,7 @@ enum Command {
 enum LabelType {
     RowGrids,
     Fringe,
+    SplitFringe,
     Rows,
     Grids,
 }
@@ -346,7 +347,8 @@ fn render(
 
     let label: Box<dyn Label> = match label_type {
         LabelType::RowGrids => Box::new(RowGrids),
-        LabelType::Fringe => Box::new(SplitSquareFringe),
+        LabelType::Fringe => Box::new(Fringe),
+        LabelType::SplitFringe => Box::new(SplitFringe),
         LabelType::Rows => Box::new(Rows),
         LabelType::Grids => Box::new(Scaled::new(RowGrids, grid_size)?),
     };
@@ -365,7 +367,7 @@ fn render(
         let grid_size = Size::new(grid_size.0 as usize, grid_size.1 as usize)?;
 
         schemes.push(Box::new(Tiled::new(
-            Scheme::new(SplitSquareFringe, coloring.clone()),
+            Scheme::new(SplitFringe, coloring.clone()),
             grid_size,
         )))
     }
@@ -420,7 +422,15 @@ fn solve(state: &mut Puzzle, label: LabelType, verbose: bool) -> Result<(), Box<
             let mut s = Solver::new(&ManhattanDistance(&Rows), &Rows);
             s.solve(state)?
         }
-        _ => unimplemented!(),
+        LabelType::Fringe => {
+            let mut s = Solver::new(&ManhattanDistance(&Fringe), &Fringe);
+            s.solve(state)?
+        }
+        LabelType::SplitFringe => {
+            let mut s = Solver::new(&ManhattanDistance(&SplitFringe), &SplitFringe);
+            s.solve(state)?
+        }
+        LabelType::Grids => unimplemented!(),
     };
 
     println!("{a}");
