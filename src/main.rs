@@ -22,7 +22,7 @@ use slidy::{
         sliding_puzzle::SlidingPuzzle,
     },
     solver::{
-        heuristic::{Heuristic, ManhattanDistance},
+        heuristic::{manhattan::ManhattanDistance, Heuristic},
         solver::Solver,
     },
 };
@@ -289,7 +289,7 @@ fn length(alg: &mut Algorithm, metric: Metric) {
 
 fn lower_bound(state: &mut Puzzle) {
     if state.is_solvable() {
-        let b: u64 = ManhattanDistance.bound(state);
+        let b: u64 = ManhattanDistance(&RowGrids).bound(state);
         println!("{b}");
     } else {
         println!("Unsolvable");
@@ -307,7 +307,7 @@ fn optimize(alg: &mut Algorithm, length: u32) -> Result<(), Box<dyn Error>> {
         let mut puzzle = Puzzle::new(size);
         puzzle.apply_alg(&slice);
 
-        let mut solver = Solver::new(&ManhattanDistance);
+        let mut solver = Solver::new(&ManhattanDistance(&RowGrids), &RowGrids);
         let solution = solver.solve(&puzzle)?;
 
         if solution.len_stm::<u32>() == length {
@@ -406,7 +406,7 @@ fn solvable(state: &mut Puzzle) {
 }
 
 fn solve(state: &mut Puzzle, verbose: bool) -> Result<(), Box<dyn Error>> {
-    let mut s = Solver::new(&ManhattanDistance);
+    let mut s = Solver::new(&ManhattanDistance(&RowGrids), &RowGrids);
     let a = s.solve(state)?;
     println!("{a}");
 
