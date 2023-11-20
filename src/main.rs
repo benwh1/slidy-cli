@@ -193,6 +193,9 @@ enum Command {
     Solve {
         state: Option<Puzzle>,
 
+        #[clap(short, long, default_value = "row-grids")]
+        label: LabelType,
+
         #[clap(short, long)]
         verbose: bool,
     },
@@ -200,6 +203,7 @@ enum Command {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 enum LabelType {
+    RowGrids,
     Fringe,
     Rows,
     Grids,
@@ -341,6 +345,7 @@ fn render(
     };
 
     let label: Box<dyn Label> = match label_type {
+        LabelType::RowGrids => Box::new(RowGrids),
         LabelType::Fringe => Box::new(SplitSquareFringe),
         LabelType::Rows => Box::new(Rows),
         LabelType::Grids => Box::new(Scaled::new(RowGrids, grid_size)?),
@@ -405,9 +410,19 @@ fn solvable(state: &mut Puzzle) {
     println!("{}", state.is_solvable());
 }
 
-fn solve(state: &mut Puzzle, verbose: bool) -> Result<(), Box<dyn Error>> {
-    let mut s = Solver::new(&ManhattanDistance(&RowGrids), &RowGrids);
-    let a = s.solve(state)?;
+fn solve(state: &mut Puzzle, label: LabelType, verbose: bool) -> Result<(), Box<dyn Error>> {
+    let a = match label {
+        LabelType::RowGrids => {
+            let mut s = Solver::new(&ManhattanDistance(&RowGrids), &RowGrids);
+            s.solve(state)?
+        }
+        LabelType::Rows => {
+            let mut s = Solver::new(&ManhattanDistance(&Rows), &Rows);
+            s.solve(state)?
+        }
+        _ => unimplemented!(),
+    };
+
     println!("{a}");
 
     if verbose {
@@ -480,6 +495,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         Command::Simplify { alg, verbose } => try_func(|a| simplify(a, verbose), alg),
         Command::Slice { alg, start, end } => try_func(|a| slice(a, start, end), alg),
         Command::Solvable { state } => try_func(solvable, state),
-        Command::Solve { state, verbose } => try_func(|s| solve(s, verbose), state),
+        Command::Solve {
+            state,
+            label,
+            verbose,
+        } => try_func(|s| solve(s, label, verbose), state),
     }
 }
