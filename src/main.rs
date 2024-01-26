@@ -10,7 +10,7 @@ use slidy::{
     algorithm::algorithm::Algorithm,
     puzzle::{
         color_scheme::{tiled::Tiled, ColorScheme, Scheme, SchemeList},
-        coloring::{Coloring, Monochrome, Rainbow, RainbowBright, RainbowBrightFull, RainbowFull},
+        coloring::{Coloring, Monochrome, Rainbow},
         label::{
             labels::{Fringe, Label, RowGrids, Rows, SplitFringe},
             scaled::Scaled,
@@ -214,9 +214,6 @@ enum LabelType {
 enum ColoringType {
     None,
     Rainbow,
-    RainbowFull,
-    RainbowBright,
-    RainbowBrightFull,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
@@ -355,10 +352,7 @@ fn render(
 
     let coloring: Rc<dyn Coloring> = match coloring_type {
         ColoringType::None => Rc::new(Monochrome::new(Rgba::new(0.0, 0.0, 0.0, 0.0))),
-        ColoringType::Rainbow => Rc::new(Rainbow),
-        ColoringType::RainbowFull => Rc::new(RainbowFull),
-        ColoringType::RainbowBright => Rc::new(RainbowBright),
-        ColoringType::RainbowBrightFull => Rc::new(RainbowBrightFull),
+        ColoringType::Rainbow => Rc::new(Rainbow::default()),
     };
 
     let mut schemes: Vec<Box<dyn ColorScheme>> =
