@@ -147,7 +147,7 @@ enum Command {
         alg: Option<Algorithm>,
 
         #[clap(short, long)]
-        length: u32,
+        length: u64,
     },
 
     #[clap(about = "Creates an SVG image of a puzzle state")]
@@ -180,10 +180,10 @@ enum Command {
         alg: Option<Algorithm>,
 
         #[clap(short, long, default_value = "0")]
-        start: u32,
+        start: u64,
 
         #[clap(short, long)]
-        end: Option<u32>,
+        end: Option<u64>,
     },
 
     #[clap(about = "Checks if puzzle states are solvable")]
@@ -264,7 +264,7 @@ fn format_state(state: &Puzzle, formatter: StateFormatter) {
     }
 }
 
-fn generate(number: u64, size: Size, s: impl Scrambler<Puzzle>) -> Result<(), Box<dyn Error>> {
+fn generate(number: u64, size: Size, s: impl Scrambler) -> Result<(), Box<dyn Error>> {
     let mut p = Puzzle::new(size);
 
     for _ in 0..number {
@@ -282,7 +282,7 @@ fn invert(alg: &mut Algorithm) {
 }
 
 fn length(alg: &mut Algorithm, metric: Metric) {
-    let len: u32 = match metric {
+    let len: u64 = match metric {
         Metric::Stm => alg.len_stm(),
         Metric::Mtm => alg.len_mtm(),
     };
@@ -298,7 +298,7 @@ fn lower_bound(state: &mut Puzzle) {
     }
 }
 
-fn optimize(alg: &mut Algorithm, length: u32) -> Result<(), Box<dyn Error>> {
+fn optimize(alg: &mut Algorithm, length: u64) -> Result<(), Box<dyn Error>> {
     let mut idx = 0;
     while idx + length <= alg.len_stm() {
         let slice = alg.try_slice(idx..idx + length)?;
@@ -312,7 +312,7 @@ fn optimize(alg: &mut Algorithm, length: u32) -> Result<(), Box<dyn Error>> {
         let mut solver = Solver::new(&ManhattanDistance(&RowGrids), &RowGrids);
         let solution = solver.solve(&puzzle)?;
 
-        if solution.len_stm::<u32>() == length {
+        if solution.len_stm::<u64>() == length {
             idx += 1;
         } else {
             let mut start = Algorithm::from(alg.try_slice(0..idx)?);
@@ -339,7 +339,7 @@ fn render(
 ) -> Result<(), Box<dyn Error>> {
     let grid_size = {
         let (width, height) = state.size().into();
-        (width.div_ceil(2) as u32, height.div_ceil(2) as u32)
+        (width.div_ceil(2), height.div_ceil(2))
     };
 
     let label: Box<dyn Label> = match label_type {
@@ -358,7 +358,7 @@ fn render(
     let mut schemes: Vec<Box<dyn ColorScheme>> =
         vec![Box::new(Scheme::new(label, coloring.clone()))];
     if label_type == LabelType::Grids {
-        let grid_size = Size::new(grid_size.0 as usize, grid_size.1 as usize)?;
+        let grid_size = Size::new(grid_size.0, grid_size.1)?;
 
         schemes.push(Box::new(Tiled::new(
             Scheme::new(SplitFringe, coloring.clone()),
@@ -380,9 +380,9 @@ fn render(
 }
 
 fn simplify(alg: &mut Algorithm, verbose: bool) {
-    let orig: u32 = alg.len_stm();
+    let orig: u64 = alg.len_stm();
     alg.simplify();
-    let new: u32 = alg.len_stm();
+    let new: u64 = alg.len_stm();
 
     println!("{alg}");
     if verbose {
@@ -394,7 +394,7 @@ fn simplify(alg: &mut Algorithm, verbose: bool) {
     }
 }
 
-fn slice(alg: &mut Algorithm, start: u32, end: Option<u32>) -> Result<(), Box<dyn Error>> {
+fn slice(alg: &mut Algorithm, start: u64, end: Option<u64>) -> Result<(), Box<dyn Error>> {
     let end = end.unwrap_or(alg.len_stm());
     let slice = alg.try_slice(start..end)?;
     println!("{slice}");
@@ -430,7 +430,7 @@ fn solve(state: &mut Puzzle, label: LabelType, verbose: bool) -> Result<(), Box<
     println!("{a}");
 
     if verbose {
-        println!("{} moves", a.len_stm::<u32>());
+        println!("{} moves", a.len_stm::<u64>());
     }
 
     Ok(())
