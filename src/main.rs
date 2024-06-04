@@ -90,6 +90,17 @@ enum Command {
         size: Option<Size>,
     },
 
+    #[clap(about = "Filters out suboptimal solutions from a list of algorithms")]
+    FilterOptimal {
+        alg: Option<Algorithm>,
+
+        #[clap(short, long)]
+        size: Size,
+
+        #[clap(short, long)]
+        keep_suboptimal: bool,
+    },
+
     #[clap(about = "Formats algorithms using long or short notation, with or without spaces")]
     Format {
         alg: Option<Algorithm>,
@@ -270,6 +281,25 @@ fn embed(state: &Puzzle, target: &mut Puzzle) {
         println!("{target}");
     } else {
         println!("Invalid");
+    }
+}
+
+fn filter_optimal(alg: &Algorithm, size: Size, keep_suboptimal: bool) {
+    let mut p = Puzzle::new(size);
+    let inverse = alg.inverse();
+
+    if !p.try_apply_alg(&inverse) {
+        return;
+    }
+
+    let mut solver = Solver::new(&ManhattanDistance(&RowGrids), &RowGrids);
+    let solution = solver.solve(&p).unwrap();
+
+    let alg_len = alg.len_stm::<u64>();
+    let opt_len = solution.len_stm::<u64>();
+
+    if (alg_len == opt_len) ^ keep_suboptimal {
+        println!("{alg}");
     }
 }
 
@@ -523,6 +553,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
             }
         }
+        Command::FilterOptimal {
+            alg,
+            size,
+            keep_suboptimal,
+        } => try_func(|a| filter_optimal(a, size, keep_suboptimal), alg),
         Command::Format { alg, long, spaced } => try_func(|a| format(a, long, spaced), alg),
         Command::FormatState { state, format } => try_func(|s| format_state(s, format), state),
         Command::Generate {
