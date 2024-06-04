@@ -151,10 +151,10 @@ enum Command {
     },
 
     #[clap(
-        about = "Prints the lower bound on the optimal solution length using the Manhattan \
-        distance heuristic"
+        about = "Prints the sum of the Manhattan distances of all pieces from their solved \
+        positions."
     )]
-    LowerBound { state: Option<Puzzle> },
+    Md { state: Option<Puzzle> },
 
     #[clap(
         about = "Attempts to find a shorter equivalent algorithm by optimally solving all \
@@ -314,7 +314,7 @@ fn length(alg: &mut Algorithm, metric: Metric) {
     println!("{len}");
 }
 
-fn lower_bound(state: &mut Puzzle) {
+fn md(state: &mut Puzzle) {
     if state.is_solvable() {
         let b: u64 = ManhattanDistance(&RowGrids).bound(state);
         println!("{b}");
@@ -529,7 +529,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         Command::Invert { alg } => try_func(invert, alg),
         Command::Length { alg, metric } => try_func(|a| length(a, metric), alg),
-        Command::LowerBound { state } => try_func(lower_bound, state),
+        Command::Md { state } => try_func(md, state),
         Command::Optimize { alg, length } => try_func(|a| optimize(a, length), alg),
         Command::Render {
             state,
