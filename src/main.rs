@@ -330,8 +330,11 @@ fn format_state(state: &Puzzle, formatter: StateFormatter) {
 
 fn from_solution(alg: &Algorithm, size: Size) {
     let mut p = Puzzle::new(size);
-    p.apply_alg(&alg.inverse());
-    println!("{p}");
+    if p.try_apply_alg(&alg.inverse()) {
+        println!("{p}");
+    } else {
+        println!("Invalid");
+    }
 }
 
 fn generate(number: u64, size: Size, s: impl Scrambler) -> Result<(), Box<dyn Error>> {
