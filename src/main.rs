@@ -121,6 +121,14 @@ enum Command {
         format: StateFormatter,
     },
 
+    #[clap(about = "Prints the scramble state, given a solution and the size of the puzzle")]
+    FromSolution {
+        alg: Option<Algorithm>,
+
+        #[clap(short, long)]
+        size: Size,
+    },
+
     #[clap(about = "Generates random scrambles")]
     #[clap(group(ArgGroup::new("scrambler")))]
     #[clap(group(ArgGroup::new("scrambler_random_moves").requires("random_moves").multiple(true)))]
@@ -318,6 +326,12 @@ fn format_state(state: &Puzzle, formatter: StateFormatter) {
         StateFormatter::Inline => println!("{}", state.display_inline()),
         StateFormatter::Grid => println!("{}", state.display_grid()),
     }
+}
+
+fn from_solution(alg: &Algorithm, size: Size) {
+    let mut p = Puzzle::new(size);
+    p.apply_alg(&alg.inverse());
+    println!("{p}");
 }
 
 fn generate(number: u64, size: Size, s: impl Scrambler) -> Result<(), Box<dyn Error>> {
@@ -560,6 +574,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         } => try_func(|a| filter_optimal(a, size, keep_suboptimal), alg),
         Command::Format { alg, long, spaced } => try_func(|a| format(a, long, spaced), alg),
         Command::FormatState { state, format } => try_func(|s| format_state(s, format), state),
+        Command::FromSolution { alg, size } => try_func(|a| from_solution(a, size), alg),
         Command::Generate {
             number,
             size,
