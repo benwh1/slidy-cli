@@ -18,4 +18,8 @@ name = "slidy"
 path = "src/main.rs"
 
 [profile.release]
-lto = "fat"
+lto = true
+codegen-units = 1
+opt-level = 3
+debug = false
+strip = true
