@@ -12,7 +12,10 @@ use slidy::{
         color_scheme::{tiled::Tiled, ColorScheme, Scheme, SchemeList},
         coloring::{Coloring, Monochrome, Rainbow},
         label::{
-            labels::{Fringe, Label, RowGrids, Rows, SplitFringe},
+            label::{
+                Checkerboard, Diagonals, Fringe, Label, RowGrids, Rows, SplitFringe,
+                SplitSquareFringe, SquareFringe,
+            },
             scaled::Scaled,
         },
         puzzle::Puzzle,
@@ -215,9 +218,13 @@ enum Command {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 enum LabelType {
     RowGrids,
-    Fringe,
-    SplitFringe,
     Rows,
+    Fringe,
+    SquareFringe,
+    SplitFringe,
+    SplitSquareFringe,
+    Diagonals,
+    Checkerboard,
     Grids,
 }
 
@@ -363,9 +370,13 @@ fn render(
 
     let label: Box<dyn Label> = match label_type {
         LabelType::RowGrids => Box::new(RowGrids),
-        LabelType::Fringe => Box::new(Fringe),
-        LabelType::SplitFringe => Box::new(SplitFringe),
         LabelType::Rows => Box::new(Rows),
+        LabelType::Fringe => Box::new(Fringe),
+        LabelType::SquareFringe => Box::new(SquareFringe),
+        LabelType::SplitFringe => Box::new(SplitFringe),
+        LabelType::SplitSquareFringe => Box::new(SplitSquareFringe),
+        LabelType::Diagonals => Box::new(Diagonals),
+        LabelType::Checkerboard => Box::new(Checkerboard),
         LabelType::Grids => Box::new(Scaled::new(RowGrids, grid_size)?),
     };
 
@@ -439,8 +450,24 @@ fn solve(state: &mut Puzzle, label: LabelType, verbose: bool) -> Result<(), Box<
             let mut s = Solver::new(&ManhattanDistance(&Fringe), &Fringe);
             s.solve(state)?
         }
+        LabelType::SquareFringe => {
+            let mut s = Solver::new(&ManhattanDistance(&SquareFringe), &SquareFringe);
+            s.solve(state)?
+        }
         LabelType::SplitFringe => {
             let mut s = Solver::new(&ManhattanDistance(&SplitFringe), &SplitFringe);
+            s.solve(state)?
+        }
+        LabelType::SplitSquareFringe => {
+            let mut s = Solver::new(&ManhattanDistance(&SplitSquareFringe), &SplitSquareFringe);
+            s.solve(state)?
+        }
+        LabelType::Diagonals => {
+            let mut s = Solver::new(&ManhattanDistance(&Diagonals), &Diagonals);
+            s.solve(state)?
+        }
+        LabelType::Checkerboard => {
+            let mut s = Solver::new(&ManhattanDistance(&Checkerboard), &Checkerboard);
             s.solve(state)?
         }
         LabelType::Grids => unimplemented!(),
