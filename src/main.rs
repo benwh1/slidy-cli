@@ -76,6 +76,23 @@ enum Command {
         suffix: Algorithm,
     },
 
+    #[clap(
+        about = "Embeds a puzzle state into a larger puzzle, e.g. a 3x3 into the bottom right \
+                 corner of a 4x4"
+    )]
+    #[clap(group(ArgGroup::new("group").multiple(true).required(true)))]
+    #[clap(group(ArgGroup::new("target_type").multiple(false).required(false)))]
+    Embed {
+        #[clap(group = "group")]
+        state: Option<Puzzle>,
+
+        #[clap(short, long, group = "group", group = "target_type")]
+        target: Option<Puzzle>,
+
+        #[clap(short, long, group = "group", group = "target_type")]
+        size: Option<Size>,
+    },
+
     #[clap(about = "Formats algorithms using long or short notation, with or without spaces")]
     Format {
         alg: Option<Algorithm>,
@@ -245,6 +262,14 @@ fn apply_to_solved(alg: &Algorithm, size: Size) -> Result<(), Box<dyn Error>> {
 
 fn concat(alg: &mut Algorithm, prefix: &Algorithm, suffix: &Algorithm) {
     println!("{prefix}{alg}{suffix}");
+}
+
+fn embed(state: &Puzzle, target: &mut Puzzle) {
+    if state.try_embed_into(target) {
+        println!("{target}");
+    } else {
+        println!("Invalid");
+    }
 }
 
 fn format(alg: &mut Algorithm, long: bool, spaced: bool) {
@@ -460,6 +485,23 @@ fn main() -> Result<(), Box<dyn Error>> {
             prefix,
             suffix,
         } => try_func(|a| concat(a, &prefix, &suffix), alg),
+        Command::Embed {
+            state,
+            target,
+            size,
+        } => {
+            let target = size.map(Puzzle::new).or(target);
+
+            match (state, target) {
+                (None, None) => unreachable!(),
+                (None, Some(target)) => loop_func(|s| embed(s, &mut target.clone())),
+                (Some(state), None) => loop_func(|t| embed(&state.clone(), t)),
+                (Some(state), Some(mut target)) => {
+                    embed(&state, &mut target);
+                    Ok(())
+                }
+            }
+        }
         Command::Format { alg, long, spaced } => try_func(|a| format(a, long, spaced), alg),
         Command::FormatState { state, format } => try_func(|s| format_state(s, format), state),
         Command::Generate {
