@@ -43,10 +43,7 @@ struct Args {
 
 #[derive(Subcommand, Debug)]
 enum Command {
-    #[clap(
-        about = "Applies algorithms to puzzle states. If only an algorithm is given, puzzle states \
-        are read from stdin. If only a puzzle state is given, algorithms are read from stdin"
-    )]
+    #[clap(about = "Applies algorithms to puzzle states")]
     #[clap(group(ArgGroup::new("group").multiple(true).required(true)))]
     Apply {
         #[clap(short, long, group = "group")]
@@ -76,10 +73,7 @@ enum Command {
         suffix: Algorithm,
     },
 
-    #[clap(
-        about = "Embeds a puzzle state into a larger puzzle, e.g. a 3x3 into the bottom right \
-                 corner of a 4x4"
-    )]
+    #[clap(about = "Embeds a puzzle state into a larger puzzle")]
     #[clap(group(ArgGroup::new("group").multiple(true).required(true)))]
     #[clap(group(ArgGroup::new("target_type").multiple(false).required(false)))]
     Embed {
@@ -152,7 +146,7 @@ enum Command {
 
     #[clap(
         about = "Prints the sum of the Manhattan distances of all pieces from their solved \
-        positions."
+        positions"
     )]
     Md { state: Option<Puzzle> },
 
