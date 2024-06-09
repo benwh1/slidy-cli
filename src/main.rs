@@ -173,6 +173,17 @@ enum Command {
     Md { state: Option<Puzzle> },
 
     #[clap(
+        about = "Finds the difference in length between an algorithm and the optimal solution \
+        of the scramble"
+    )]
+    OptDiff {
+        alg: Option<Algorithm>,
+
+        #[clap(short, long)]
+        size: Size,
+    },
+
+    #[clap(
         about = "Attempts to find a shorter equivalent algorithm by optimally solving all \
         sub-algorithms of the given length"
     )]
@@ -369,6 +380,19 @@ fn md(state: &mut Puzzle) {
     } else {
         println!("Unsolvable");
     }
+}
+
+fn opt_diff(alg: &Algorithm, size: Size) {
+    let mut p = Puzzle::new(size);
+    p.apply_alg(&alg.inverse());
+
+    let mut solver = Solver::new(&ManhattanDistance(&RowGrids), &RowGrids);
+    let solution = solver.solve(&p).unwrap();
+
+    let alg_len = alg.len_stm::<u64>();
+    let opt_len = solution.len_stm::<u64>();
+
+    println!("{}", alg_len - opt_len);
 }
 
 fn optimize(alg: &mut Algorithm, length: u64) -> Result<(), Box<dyn Error>> {
@@ -604,6 +628,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         Command::Invert { alg } => try_func(invert, alg),
         Command::Length { alg, metric } => try_func(|a| length(a, metric), alg),
         Command::Md { state } => try_func(md, state),
+        Command::OptDiff { alg, size } => try_func(|a| opt_diff(a, size), alg),
         Command::Optimize { alg, length } => try_func(|a| optimize(a, length), alg),
         Command::Render {
             state,
