@@ -553,14 +553,7 @@ fn solve(state: &mut Puzzle, label: LabelType, verbose: bool) -> Result<(), Box<
     Ok(())
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
-    #[cfg(unix)]
-    unsafe {
-        libc::signal(libc::SIGPIPE, libc::SIG_DFL);
-    }
-
-    let args = Args::parse();
-
+fn run(args: Args) -> Result<(), Box<dyn Error>> {
     match args.command {
         Command::Apply { state, alg } => match (state, alg) {
             (None, None) => unreachable!(),
@@ -646,4 +639,13 @@ fn main() -> Result<(), Box<dyn Error>> {
             verbose,
         } => try_func(|s| solve(s, label, verbose), state),
     }
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+    #[cfg(unix)]
+    unsafe {
+        libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+    }
+
+    run(Args::parse())
 }
