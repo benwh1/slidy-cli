@@ -4,13 +4,14 @@ mod args;
 mod command;
 mod enums;
 mod run;
+mod state;
 mod util;
 
 use std::error::Error;
 
 use clap::Parser as _;
 
-use crate::args::Args;
+use crate::{args::Args, run::Runner};
 
 fn main() -> Result<(), Box<dyn Error>> {
     #[cfg(unix)]
@@ -18,5 +19,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         libc::signal(libc::SIGPIPE, libc::SIG_DFL);
     }
 
-    run::run(Args::parse())
+    let mut runner = Runner::new();
+    runner.run(Args::parse())
 }

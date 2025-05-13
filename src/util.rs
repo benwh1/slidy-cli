@@ -1,7 +1,7 @@
 use std::{error::Error, str::FromStr};
 
-pub fn try_func<T: FromStr + 'static, R, F: Fn(&mut T) -> R>(
-    f: F,
+pub fn try_func<T: FromStr + 'static, R, F: FnMut(&mut T) -> R>(
+    mut f: F,
     t: Option<T>,
 ) -> Result<(), Box<dyn Error>>
 where
@@ -16,7 +16,9 @@ where
     Ok(())
 }
 
-pub fn loop_func<T: FromStr + 'static, R, F: Fn(&mut T) -> R>(f: F) -> Result<(), Box<dyn Error>>
+pub fn loop_func<T: FromStr + 'static, R, F: FnMut(&mut T) -> R>(
+    mut f: F,
+) -> Result<(), Box<dyn Error>>
 where
     <T as FromStr>::Err: Error,
 {
@@ -28,8 +30,8 @@ where
     Ok(())
 }
 
-pub fn try_func_once<T: FromStr + 'static, R, F: Fn(&mut T) -> R>(
-    f: F,
+pub fn try_func_once<T: FromStr + 'static, R, F: FnMut(&mut T) -> R>(
+    mut f: F,
     t: Option<T>,
 ) -> Result<(), Box<dyn Error>>
 where
