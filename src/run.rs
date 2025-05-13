@@ -17,10 +17,10 @@ use slidy::{
         render::{RendererBuilder, Text},
         scrambler::{RandomMoves, RandomState, Scrambler},
         size::Size,
-        sliding_puzzle::SlidingPuzzle,
+        sliding_puzzle::SlidingPuzzle as _,
     },
     solver::{
-        heuristic::{manhattan::ManhattanDistance, Heuristic},
+        heuristic::{manhattan::ManhattanDistance, Heuristic as _},
         solver::Solver,
     },
 };
@@ -59,7 +59,7 @@ impl Runner {
         Ok(())
     }
 
-    fn concat(&self, alg: &mut Algorithm, prefix: &Algorithm, suffix: &Algorithm) {
+    fn concat(&self, alg: &Algorithm, prefix: &Algorithm, suffix: &Algorithm) {
         println!("{prefix}{alg}{suffix}");
     }
 
@@ -89,7 +89,7 @@ impl Runner {
         }
     }
 
-    fn format(&self, alg: &mut Algorithm, long: bool, spaced: bool) {
+    fn format(&self, alg: &Algorithm, long: bool, spaced: bool) {
         let s = match (long, spaced) {
             (true, true) => alg.display_long_spaced().to_string(),
             (true, false) => alg.display_long_unspaced().to_string(),
@@ -115,7 +115,7 @@ impl Runner {
         }
     }
 
-    fn generate(&self, number: u64, size: Size, s: impl Scrambler) -> Result<(), Box<dyn Error>> {
+    fn generate(&self, number: u64, size: Size, s: &impl Scrambler) -> Result<(), Box<dyn Error>> {
         let mut p = Puzzle::new(size);
 
         for _ in 0..number {
@@ -132,7 +132,7 @@ impl Runner {
         println!("{alg}");
     }
 
-    fn length(&self, alg: &mut Algorithm, metric: Metric) {
+    fn length(&self, alg: &Algorithm, metric: Metric) {
         let len: u64 = match metric {
             Metric::Stm => alg.len_stm(),
             Metric::Mtm => alg.len_mtm(),
@@ -140,7 +140,7 @@ impl Runner {
         println!("{len}");
     }
 
-    fn md(&self, state: &mut Puzzle) {
+    fn md(&self, state: &Puzzle) {
         if state.is_solvable() {
             let b: u64 = ManhattanDistance(&RowGrids).bound(state);
             println!("{b}");
@@ -265,29 +265,19 @@ impl Runner {
         }
     }
 
-    fn slice(
-        &self,
-        alg: &mut Algorithm,
-        start: u64,
-        end: Option<u64>,
-    ) -> Result<(), Box<dyn Error>> {
-        let end = end.unwrap_or(alg.len_stm());
+    fn slice(&self, alg: &Algorithm, start: u64, end: Option<u64>) -> Result<(), Box<dyn Error>> {
+        let end = end.unwrap_or_else(|| alg.len_stm());
         let slice = alg.try_slice(start..end)?;
         println!("{slice}");
 
         Ok(())
     }
 
-    fn solvable(&self, state: &mut Puzzle) {
+    fn solvable(&self, state: &Puzzle) {
         println!("{}", state.is_solvable());
     }
 
-    fn solve(
-        &self,
-        state: &mut Puzzle,
-        label: LabelType,
-        verbose: bool,
-    ) -> Result<(), Box<dyn Error>> {
+    fn solve(&self, state: &Puzzle, label: LabelType, verbose: bool) -> Result<(), Box<dyn Error>> {
         let a = match label {
             LabelType::RowGrids => self.state.solve(state),
             LabelType::Rows => {
@@ -391,14 +381,14 @@ impl Runner {
                     self.generate(
                         number,
                         size,
-                        RandomMoves {
+                        &RandomMoves {
                             moves: num_moves,
                             allow_backtracking,
                             allow_illegal_moves,
                         },
                     )
                 } else {
-                    self.generate(number, size, RandomState)
+                    self.generate(number, size, &RandomState)
                 }
             }
             Command::Invert { alg } => try_func(|a| self.invert(a), alg),

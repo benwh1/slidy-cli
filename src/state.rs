@@ -2,7 +2,9 @@ use std::cell::OnceCell;
 
 use slidy::{
     algorithm::algorithm::Algorithm,
-    puzzle::{label::label::RowGrids, puzzle::Puzzle, size::Size, sliding_puzzle::SlidingPuzzle},
+    puzzle::{
+        label::label::RowGrids, puzzle::Puzzle, size::Size, sliding_puzzle::SlidingPuzzle as _,
+    },
     solver::{
         heuristic::manhattan::ManhattanDistance, pdb4443::solver::Solver as Pdb4443Solver,
         solver::Solver,
