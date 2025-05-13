@@ -44,7 +44,7 @@ impl Runner {
         }
     }
 
-    fn apply(&mut self, state: &mut Puzzle, alg: &Algorithm) {
+    fn apply(&self, state: &mut Puzzle, alg: &Algorithm) {
         if state.try_apply_alg(alg) {
             println!("{state}");
         } else {
@@ -52,18 +52,18 @@ impl Runner {
         }
     }
 
-    fn apply_to_solved(&mut self, alg: &Algorithm, size: Size) -> Result<(), Box<dyn Error>> {
+    fn apply_to_solved(&self, alg: &Algorithm, size: Size) -> Result<(), Box<dyn Error>> {
         let mut state = Puzzle::new(size);
         self.apply(&mut state, alg);
 
         Ok(())
     }
 
-    fn concat(&mut self, alg: &mut Algorithm, prefix: &Algorithm, suffix: &Algorithm) {
+    fn concat(&self, alg: &mut Algorithm, prefix: &Algorithm, suffix: &Algorithm) {
         println!("{prefix}{alg}{suffix}");
     }
 
-    fn embed(&mut self, state: &Puzzle, target: &mut Puzzle) {
+    fn embed(&self, state: &Puzzle, target: &mut Puzzle) {
         if state.try_embed_into(target) {
             println!("{target}");
         } else {
@@ -71,7 +71,7 @@ impl Runner {
         }
     }
 
-    fn filter_optimal(&mut self, alg: &Algorithm, size: Size, keep_suboptimal: bool) {
+    fn filter_optimal(&self, alg: &Algorithm, size: Size, keep_suboptimal: bool) {
         let mut p = Puzzle::new(size);
         let inverse = alg.inverse();
 
@@ -89,7 +89,7 @@ impl Runner {
         }
     }
 
-    fn format(&mut self, alg: &mut Algorithm, long: bool, spaced: bool) {
+    fn format(&self, alg: &mut Algorithm, long: bool, spaced: bool) {
         let s = match (long, spaced) {
             (true, true) => alg.display_long_spaced().to_string(),
             (true, false) => alg.display_long_unspaced().to_string(),
@@ -99,14 +99,14 @@ impl Runner {
         println!("{s}");
     }
 
-    fn format_state(&mut self, state: &Puzzle, formatter: StateFormatter) {
+    fn format_state(&self, state: &Puzzle, formatter: StateFormatter) {
         match formatter {
             StateFormatter::Inline => println!("{}", state.display_inline()),
             StateFormatter::Grid => println!("{}", state.display_grid()),
         }
     }
 
-    fn from_solution(&mut self, alg: &Algorithm, size: Size) {
+    fn from_solution(&self, alg: &Algorithm, size: Size) {
         let mut p = Puzzle::new(size);
         if p.try_apply_alg(&alg.inverse()) {
             println!("{p}");
@@ -115,12 +115,7 @@ impl Runner {
         }
     }
 
-    fn generate(
-        &mut self,
-        number: u64,
-        size: Size,
-        s: impl Scrambler,
-    ) -> Result<(), Box<dyn Error>> {
+    fn generate(&self, number: u64, size: Size, s: impl Scrambler) -> Result<(), Box<dyn Error>> {
         let mut p = Puzzle::new(size);
 
         for _ in 0..number {
@@ -132,12 +127,12 @@ impl Runner {
         Ok(())
     }
 
-    fn invert(&mut self, alg: &mut Algorithm) {
+    fn invert(&self, alg: &mut Algorithm) {
         alg.invert();
         println!("{alg}");
     }
 
-    fn length(&mut self, alg: &mut Algorithm, metric: Metric) {
+    fn length(&self, alg: &mut Algorithm, metric: Metric) {
         let len: u64 = match metric {
             Metric::Stm => alg.len_stm(),
             Metric::Mtm => alg.len_mtm(),
@@ -145,7 +140,7 @@ impl Runner {
         println!("{len}");
     }
 
-    fn md(&mut self, state: &mut Puzzle) {
+    fn md(&self, state: &mut Puzzle) {
         if state.is_solvable() {
             let b: u64 = ManhattanDistance(&RowGrids).bound(state);
             println!("{b}");
@@ -154,7 +149,7 @@ impl Runner {
         }
     }
 
-    fn opt_diff(&mut self, alg: &Algorithm, size: Size) {
+    fn opt_diff(&self, alg: &Algorithm, size: Size) {
         let mut p = Puzzle::new(size);
         p.apply_alg(&alg.inverse());
 
@@ -166,7 +161,7 @@ impl Runner {
         println!("{}", alg_len - opt_len);
     }
 
-    fn optimize(&mut self, alg: &mut Algorithm, length: u64) -> Result<(), Box<dyn Error>> {
+    fn optimize(&self, alg: &mut Algorithm, length: u64) -> Result<(), Box<dyn Error>> {
         let mut idx = 0;
         while idx + length <= alg.len_stm() {
             let slice = alg.try_slice(idx..idx + length)?;
@@ -198,7 +193,7 @@ impl Runner {
     }
 
     fn render(
-        &mut self,
+        &self,
         state: &Puzzle,
         label_type: LabelType,
         coloring_type: ColoringType,
@@ -255,7 +250,7 @@ impl Runner {
         Ok(())
     }
 
-    fn simplify(&mut self, alg: &mut Algorithm, verbose: bool) {
+    fn simplify(&self, alg: &mut Algorithm, verbose: bool) {
         let orig: u64 = alg.len_stm();
         alg.simplify();
         let new: u64 = alg.len_stm();
@@ -271,7 +266,7 @@ impl Runner {
     }
 
     fn slice(
-        &mut self,
+        &self,
         alg: &mut Algorithm,
         start: u64,
         end: Option<u64>,
@@ -283,12 +278,12 @@ impl Runner {
         Ok(())
     }
 
-    fn solvable(&mut self, state: &mut Puzzle) {
+    fn solvable(&self, state: &mut Puzzle) {
         println!("{}", state.is_solvable());
     }
 
     fn solve(
-        &mut self,
+        &self,
         state: &mut Puzzle,
         label: LabelType,
         verbose: bool,
@@ -335,7 +330,7 @@ impl Runner {
         Ok(())
     }
 
-    pub fn run(&mut self, args: Args) -> Result<(), Box<dyn Error>> {
+    pub fn run(&self, args: Args) -> Result<(), Box<dyn Error>> {
         match args.command {
             Command::Apply { state, alg } => match (state, alg) {
                 (None, None) => unreachable!(),

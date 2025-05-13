@@ -19,6 +19,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         libc::signal(libc::SIGPIPE, libc::SIG_DFL);
     }
 
-    let mut runner = Runner::new();
+    let runner = Runner::new();
     runner.run(Args::parse())
 }
