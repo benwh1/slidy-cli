@@ -2,14 +2,14 @@
 
 mod util;
 
-use std::{error::Error, rc::Rc, str::FromStr};
+use std::{error::Error, str::FromStr};
 
 use clap::{command, ArgGroup, Parser, Subcommand, ValueEnum};
 use palette::rgb::Rgba;
 use slidy::{
     algorithm::algorithm::Algorithm,
     puzzle::{
-        color_scheme::{tiled::Tiled, ColorScheme, Scheme, SchemeList},
+        color_scheme::{tiled::Tiled, Scheme},
         coloring::{Coloring, Monochrome, Rainbow},
         label::{
             label::{
@@ -19,7 +19,7 @@ use slidy::{
             scaled::Scaled,
         },
         puzzle::Puzzle,
-        render::{Renderer, RendererBuilder, Text},
+        render::{RendererBuilder, Text},
         scrambler::{RandomMoves, RandomState, Scrambler},
         size::Size,
         sliding_puzzle::SlidingPuzzle,
@@ -201,7 +201,7 @@ enum Command {
         #[clap(short, long, default_value = "fringe")]
         label: LabelType,
 
-        #[clap(short, long, default_value = "rainbow-bright-full")]
+        #[clap(short, long, default_value = "rainbow")]
         coloring: ColoringType,
 
         #[clap(short, long, default_value = "75.0")]
@@ -451,28 +451,32 @@ fn render(
         LabelType::Grids => Box::new(Scaled::new(RowGrids, grid_size)?),
     };
 
-    let coloring: Rc<dyn Coloring> = match coloring_type {
-        ColoringType::None => Rc::new(Monochrome::new(Rgba::new(0.0, 0.0, 0.0, 0.0))),
-        ColoringType::Rainbow => Rc::new(Rainbow::default()),
+    let coloring: Box<dyn Coloring> = match coloring_type {
+        ColoringType::None => Box::new(Monochrome::new(Rgba::new(0.0, 0.0, 0.0, 0.0))),
+        ColoringType::Rainbow => Box::new(Rainbow::default()),
     };
 
-    let mut schemes: Vec<Box<dyn ColorScheme>> =
-        vec![Box::new(Scheme::new(label, coloring.clone()))];
-    if label_type == LabelType::Grids {
+    let base_scheme = Box::new(Scheme::new(label, &coloring));
+    let subscheme = if label_type == LabelType::Grids {
         let grid_size = Size::new(grid_size.0, grid_size.1)?;
 
-        schemes.push(Box::new(Tiled::new(
-            Scheme::new(SplitFringe, coloring.clone()),
+        Some(Box::new(Tiled::new(
+            Scheme::new(SplitFringe, &coloring),
             grid_size,
         )))
+    } else {
+        None
+    };
+
+    let mut renderer: RendererBuilder<_, _, _> = RendererBuilder::with_scheme(&base_scheme)
+        .text(Text::default().font_size(tile_size * 30.0 / 75.0))
+        .tile_size(tile_size);
+
+    if let Some(subscheme) = subscheme {
+        renderer = renderer.subscheme(subscheme);
     }
 
-    let scheme_list = SchemeList::new(&schemes)?;
-
-    let renderer: Renderer<_, _, _> = RendererBuilder::with_scheme(&scheme_list)
-        .text(Text::default().font_size(tile_size * 30.0 / 75.0))
-        .tile_size(tile_size)
-        .build();
+    let renderer = renderer.build();
 
     let svg = renderer.render(state)?;
     svg::save(output, &svg)?;
