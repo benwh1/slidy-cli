@@ -197,6 +197,7 @@ impl Runner {
         border_label: LabelType,
         border_coloring: ColoringType,
         border_thickness: f32,
+        font_size: f32,
         output: &str,
     ) -> Result<(), Box<dyn Error>> {
         let grid_size = {
@@ -225,7 +226,7 @@ impl Runner {
             Box::new(Scheme::new(border_label, &border_coloring)) as Box<dyn ColorScheme>;
 
         let mut renderer: RendererBuilder<_, _, _> = RendererBuilder::with_scheme(&base_scheme)
-            .text(Text::default().font_size(tile_size * 30.0 / 75.0))
+            .text(Text::default().font_size(font_size))
             .borders(Borders::with_scheme(border_scheme).thickness(border_thickness))
             .tile_size(tile_size)
             .tile_gap(tile_gap);
@@ -401,6 +402,7 @@ impl Runner {
                 border_label,
                 border_coloring,
                 border_thickness,
+                font_size,
                 output,
             } => try_func_once(
                 |s| {
@@ -413,6 +415,7 @@ impl Runner {
                         border_label,
                         border_coloring,
                         border_thickness,
+                        font_size,
                         &output,
                     )
                 },

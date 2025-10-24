@@ -183,6 +183,9 @@ pub enum Command {
         #[clap(short, long, default_value = "0.0")]
         border_thickness: f32,
 
+        #[clap(short = 's', long, default_value = "30.0")]
+        font_size: f32,
+
         #[clap(short, long)]
         output: String,
     },
