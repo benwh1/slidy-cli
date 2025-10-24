@@ -198,6 +198,7 @@ impl Runner {
         label_type: LabelType,
         coloring_type: ColoringType,
         tile_size: f32,
+        tile_gap: f32,
         output: &str,
     ) -> Result<(), Box<dyn Error>> {
         let grid_size = {
@@ -236,7 +237,8 @@ impl Runner {
 
         let mut renderer: RendererBuilder<_, _, _> = RendererBuilder::with_scheme(&base_scheme)
             .text(Text::default().font_size(tile_size * 30.0 / 75.0))
-            .tile_size(tile_size);
+            .tile_size(tile_size)
+            .tile_gap(tile_gap);
 
         if let Some(subscheme) = subscheme {
             renderer = renderer.subscheme(subscheme);
@@ -401,9 +403,10 @@ impl Runner {
                 label,
                 coloring,
                 tile_size,
+                tile_gap,
                 output,
             } => try_func_once(
-                |s| self.render(s, label, coloring, tile_size, &output),
+                |s| self.render(s, label, coloring, tile_size, tile_gap, &output),
                 state,
             ),
             Command::Simplify { alg, verbose } => try_func(|a| self.simplify(a, verbose), alg),

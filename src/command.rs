@@ -171,6 +171,9 @@ pub enum Command {
         #[clap(short, long, default_value = "75.0")]
         tile_size: f32,
 
+        #[clap(short = 'g', long, default_value = "0.0")]
+        tile_gap: f32,
+
         #[clap(short, long)]
         output: String,
     },
