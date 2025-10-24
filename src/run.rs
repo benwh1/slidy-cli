@@ -1,20 +1,15 @@
 use std::error::Error;
 
-use palette::rgb::Rgba;
 use slidy::{
     algorithm::algorithm::Algorithm,
     puzzle::{
-        color_scheme::{tiled::Tiled, Scheme},
-        coloring::{Coloring, Monochrome, Rainbow},
-        label::{
-            label::{
-                Checkerboard, Diagonals, Fringe, Label, RowGrids, Rows, SplitFringe,
-                SplitSquareFringe, SquareFringe,
-            },
-            scaled::Scaled,
+        color_scheme::{tiled::Tiled, ColorScheme, Scheme},
+        label::label::{
+            Checkerboard, Diagonals, Fringe, RowGrids, Rows, SplitFringe, SplitSquareFringe,
+            SquareFringe, Trivial,
         },
         puzzle::Puzzle,
-        render::{RendererBuilder, Text},
+        render::{Borders, RendererBuilder, Text},
         scrambler::{RandomMoves, RandomState, Scrambler},
         size::Size,
         sliding_puzzle::SlidingPuzzle as _,
@@ -199,6 +194,9 @@ impl Runner {
         coloring_type: ColoringType,
         tile_size: f32,
         tile_gap: f32,
+        border_label: LabelType,
+        border_coloring: ColoringType,
+        border_thickness: f32,
         output: &str,
     ) -> Result<(), Box<dyn Error>> {
         let grid_size = {
@@ -206,22 +204,8 @@ impl Runner {
             (width.div_ceil(2), height.div_ceil(2))
         };
 
-        let label: Box<dyn Label> = match label_type {
-            LabelType::RowGrids => Box::new(RowGrids),
-            LabelType::Rows => Box::new(Rows),
-            LabelType::Fringe => Box::new(Fringe),
-            LabelType::SquareFringe => Box::new(SquareFringe),
-            LabelType::SplitFringe => Box::new(SplitFringe),
-            LabelType::SplitSquareFringe => Box::new(SplitSquareFringe),
-            LabelType::Diagonals => Box::new(Diagonals),
-            LabelType::Checkerboard => Box::new(Checkerboard),
-            LabelType::Grids => Box::new(Scaled::new(RowGrids, grid_size)?),
-        };
-
-        let coloring: Box<dyn Coloring> = match coloring_type {
-            ColoringType::None => Box::new(Monochrome::new(Rgba::new(0.0, 0.0, 0.0, 0.0))),
-            ColoringType::Rainbow => Box::new(Rainbow::default()),
-        };
+        let label = label_type.to_box_dyn_label(Some(grid_size)).unwrap();
+        let coloring = coloring_type.to_box_dyn_coloring();
 
         let base_scheme = Box::new(Scheme::new(label, &coloring));
         let subscheme = if label_type == LabelType::Grids {
@@ -235,8 +219,14 @@ impl Runner {
             None
         };
 
+        let border_label = border_label.to_box_dyn_label(Some(grid_size)).unwrap();
+        let border_coloring = border_coloring.to_box_dyn_coloring();
+        let border_scheme =
+            Box::new(Scheme::new(border_label, &border_coloring)) as Box<dyn ColorScheme>;
+
         let mut renderer: RendererBuilder<_, _, _> = RendererBuilder::with_scheme(&base_scheme)
             .text(Text::default().font_size(tile_size * 30.0 / 75.0))
+            .borders(Borders::with_scheme(border_scheme).thickness(border_thickness))
             .tile_size(tile_size)
             .tile_gap(tile_gap);
 
@@ -281,6 +271,10 @@ impl Runner {
 
     fn solve(&self, state: &Puzzle, label: LabelType, verbose: bool) -> Result<(), Box<dyn Error>> {
         let a = match label {
+            LabelType::Trivial => {
+                let mut s = Solver::new(&ManhattanDistance(&Trivial), &Trivial);
+                s.solve(state)?
+            }
             LabelType::RowGrids => self.state.solve(state),
             LabelType::Rows => {
                 let mut s = Solver::new(&ManhattanDistance(&Rows), &Rows);
@@ -404,9 +398,24 @@ impl Runner {
                 coloring,
                 tile_size,
                 tile_gap,
+                border_label,
+                border_coloring,
+                border_thickness,
                 output,
             } => try_func_once(
-                |s| self.render(s, label, coloring, tile_size, tile_gap, &output),
+                |s| {
+                    self.render(
+                        s,
+                        label,
+                        coloring,
+                        tile_size,
+                        tile_gap,
+                        border_label,
+                        border_coloring,
+                        border_thickness,
+                        &output,
+                    )
+                },
                 state,
             ),
             Command::Simplify { alg, verbose } => try_func(|a| self.simplify(a, verbose), alg),

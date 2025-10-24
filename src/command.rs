@@ -174,6 +174,15 @@ pub enum Command {
         #[clap(short = 'g', long, default_value = "0.0")]
         tile_gap: f32,
 
+        #[clap(long, default_value = "trivial")]
+        border_label: LabelType,
+
+        #[clap(long, default_value = "black")]
+        border_coloring: ColoringType,
+
+        #[clap(short, long, default_value = "0.0")]
+        border_thickness: f32,
+
         #[clap(short, long)]
         output: String,
     },
