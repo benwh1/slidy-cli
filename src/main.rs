@@ -1,5 +1,3 @@
-#![feature(int_roundings)]
-
 mod algorithm_ext;
 mod args;
 mod command;
