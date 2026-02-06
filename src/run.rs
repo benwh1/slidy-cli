@@ -21,6 +21,7 @@ use slidy::{
 };
 
 use crate::{
+    algorithm_ext::AlgorithmExt as _,
     args::Args,
     command::Command,
     enums::{ColoringType, LabelType, Metric, StateFormatter},
@@ -66,7 +67,7 @@ impl Runner {
         }
     }
 
-    fn filter_optimal(&self, alg: &Algorithm, size: Size, keep_suboptimal: bool) {
+    fn filter_optimal(&self, alg: &Algorithm, size: Size, metric: Metric, keep_suboptimal: bool) {
         let mut p = Puzzle::new(size);
         let inverse = alg.inverse();
 
@@ -74,10 +75,10 @@ impl Runner {
             return;
         }
 
-        let solution = self.state.solve(&p);
+        let solution = self.state.solve(&p, metric);
 
-        let alg_len = alg.len_stm::<u64>();
-        let opt_len = solution.len_stm::<u64>();
+        let alg_len = alg.len_metric(metric);
+        let opt_len = solution.len_metric(metric);
 
         if (alg_len == opt_len) ^ keep_suboptimal {
             println!("{alg}");
@@ -128,10 +129,7 @@ impl Runner {
     }
 
     fn length(&self, alg: &Algorithm, metric: Metric) {
-        let len: u64 = match metric {
-            Metric::Stm => alg.len_stm(),
-            Metric::Mtm => alg.len_mtm(),
-        };
+        let len = alg.len_metric(metric);
         println!("{len}");
     }
 
@@ -144,21 +142,26 @@ impl Runner {
         }
     }
 
-    fn opt_diff(&self, alg: &Algorithm, size: Size) {
+    fn opt_diff(&self, alg: &Algorithm, metric: Metric, size: Size) {
         let mut p = Puzzle::new(size);
         p.apply_alg(&alg.inverse());
 
-        let solution = self.state.solve(&p);
+        let solution = self.state.solve(&p, metric);
 
-        let alg_len = alg.len_stm::<u64>();
-        let opt_len = solution.len_stm::<u64>();
+        let alg_len = alg.len_metric(metric);
+        let opt_len = solution.len_metric(metric);
 
         println!("{}", alg_len - opt_len);
     }
 
-    fn optimize(&self, alg: &mut Algorithm, length: u64) -> Result<(), Box<dyn Error>> {
+    fn optimize(
+        &self,
+        alg: &mut Algorithm,
+        metric: Metric,
+        length: u64,
+    ) -> Result<(), Box<dyn Error>> {
         let mut idx = 0;
-        while idx + length <= alg.len_stm() {
+        while idx + length <= alg.len_metric(metric) {
             let slice = alg.try_slice(idx..idx + length)?;
             let Some(size) = slice.min_applicable_size() else {
                 idx += 1;
@@ -167,14 +170,14 @@ impl Runner {
             let mut puzzle = Puzzle::new(size);
             puzzle.apply_alg(&slice);
 
-            let solution = self.state.solve(&puzzle);
+            let solution = self.state.solve(&puzzle, metric);
 
-            if solution.len_stm::<u64>() == length {
+            if solution.len_metric(metric) == length {
                 idx += 1;
             } else {
                 let mut start = Algorithm::from(alg.try_slice(0..idx)?);
                 let middle = solution.inverse();
-                let end = Algorithm::from(alg.try_slice(idx + length..alg.len_stm())?);
+                let end = Algorithm::from(alg.try_slice(idx + length..alg.len_metric(metric))?);
                 start += middle;
                 start += end;
 
@@ -270,13 +273,23 @@ impl Runner {
         println!("{}", state.is_solvable());
     }
 
-    fn solve(&self, state: &Puzzle, label: LabelType, verbose: bool) -> Result<(), Box<dyn Error>> {
+    fn solve(
+        &self,
+        state: &Puzzle,
+        metric: Metric,
+        label: LabelType,
+        verbose: bool,
+    ) -> Result<(), Box<dyn Error>> {
+        if metric == Metric::Mtm && label != LabelType::RowGrids {
+            return Err("solving labels other than row grids in MTM is not supported".into());
+        }
+
         let a = match label {
             LabelType::Trivial => {
                 let mut s = Solver::new(&ManhattanDistance(&Trivial), &Trivial);
                 s.solve(state)?
             }
-            LabelType::RowGrids => self.state.solve(state),
+            LabelType::RowGrids => self.state.solve(state, metric),
             LabelType::Rows => {
                 let mut s = Solver::new(&ManhattanDistance(&Rows), &Rows);
                 s.solve(state)?
@@ -311,7 +324,7 @@ impl Runner {
         println!("{a}");
 
         if verbose {
-            println!("{} moves", a.len_stm::<u64>());
+            println!("{} moves", a.len_metric(metric));
         }
 
         Ok(())
@@ -356,8 +369,12 @@ impl Runner {
             Command::FilterOptimal {
                 alg,
                 size,
+                metric,
                 keep_suboptimal,
-            } => try_func(|a| self.filter_optimal(a, size, keep_suboptimal), alg),
+            } => try_func(
+                |a| self.filter_optimal(a, size, metric, keep_suboptimal),
+                alg,
+            ),
             Command::Format { alg, long, spaced } => {
                 try_func(|a| self.format(a, long, spaced), alg)
             }
@@ -391,8 +408,14 @@ impl Runner {
             Command::Invert { alg } => try_func(|a| self.invert(a), alg),
             Command::Length { alg, metric } => try_func(|a| self.length(a, metric), alg),
             Command::Md { state } => try_func(|s| self.md(s), state),
-            Command::OptDiff { alg, size } => try_func(|a| self.opt_diff(a, size), alg),
-            Command::Optimize { alg, length } => try_func(|a| self.optimize(a, length), alg),
+            Command::OptDiff { alg, size, metric } => {
+                try_func(|a| self.opt_diff(a, metric, size), alg)
+            }
+            Command::Optimize {
+                alg,
+                metric,
+                length,
+            } => try_func(|a| self.optimize(a, metric, length), alg),
             Command::Render {
                 state,
                 label,
@@ -426,9 +449,10 @@ impl Runner {
             Command::Solvable { state } => try_func(|s| self.solvable(s), state),
             Command::Solve {
                 state,
+                metric,
                 label,
                 verbose,
-            } => try_func(|s| self.solve(s, label, verbose), state),
+            } => try_func(|s| self.solve(s, metric, label, verbose), state),
         }
     }
 }

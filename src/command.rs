@@ -61,6 +61,9 @@ pub enum Command {
         #[clap(short, long)]
         size: Size,
 
+        #[clap(short, long, default_value = "stm")]
+        metric: Metric,
+
         #[clap(short, long)]
         keep_suboptimal: bool,
     },
@@ -145,6 +148,9 @@ pub enum Command {
 
         #[clap(short, long)]
         size: Size,
+
+        #[clap(short, long, default_value = "stm")]
+        metric: Metric,
     },
 
     #[clap(
@@ -156,6 +162,9 @@ pub enum Command {
 
         #[clap(short, long)]
         length: u64,
+
+        #[clap(short, long, default_value = "stm")]
+        metric: Metric,
     },
 
     #[clap(about = "Creates an SVG image of a puzzle state")]
@@ -215,6 +224,9 @@ pub enum Command {
     #[clap(about = "Finds one optimal solution to a puzzle state")]
     Solve {
         state: Option<Puzzle>,
+
+        #[clap(short, long, default_value = "stm")]
+        metric: Metric,
 
         #[clap(short, long, default_value = "row-grids")]
         label: LabelType,
