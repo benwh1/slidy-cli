@@ -234,4 +234,7 @@ pub enum Command {
         #[clap(short, long)]
         verbose: bool,
     },
+
+    #[clap(about = "Prints the transpose of an algorithm")]
+    Transpose { alg: Option<Algorithm> },
 }

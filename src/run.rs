@@ -329,6 +329,11 @@ impl Runner {
         Ok(())
     }
 
+    fn transpose(alg: &Algorithm) {
+        let transposed = alg.transpose();
+        println!("{transposed}");
+    }
+
     pub fn run(&self, args: Args) -> Result<(), Box<dyn Error>> {
         match args.command {
             Command::Apply { state, alg } => match (state, alg) {
@@ -454,6 +459,7 @@ impl Runner {
                 label,
                 verbose,
             } => try_func(|s| self.solve(s, metric, label, verbose), state),
+            Command::Transpose { alg } => try_func(|a| Self::transpose(a), alg),
         }
     }
 }
