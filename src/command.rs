@@ -167,6 +167,22 @@ pub enum Command {
         metric: Metric,
     },
 
+    #[clap(about = "Prints the piece in a given position in a puzzle state")]
+    PieceAt {
+        state: Option<Puzzle>,
+
+        #[clap(short, long)]
+        position: u64,
+    },
+
+    #[clap(about = "Prints the position of a piece in a puzzle state")]
+    PiecePosition {
+        state: Option<Puzzle>,
+
+        #[clap(short, long)]
+        piece: u64,
+    },
+
     #[clap(about = "Creates an SVG image of a puzzle state")]
     Render {
         state: Option<Puzzle>,

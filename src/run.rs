@@ -190,6 +190,14 @@ impl Runner {
         Ok(())
     }
 
+    fn piece_at(state: &Puzzle, position: u64) {
+        println!("{}", state.piece_at(position));
+    }
+
+    fn piece_position(state: &Puzzle, piece: u64) {
+        println!("{}", state.piece_position(piece));
+    }
+
     fn render(
         state: &Puzzle,
         label_type: LabelType,
@@ -422,6 +430,12 @@ impl Runner {
                 metric,
                 length,
             } => try_func(|a| self.optimize(a, metric, length), alg),
+            Command::PieceAt { state, position } => {
+                try_func(|s| Self::piece_at(s, position), state)
+            }
+            Command::PiecePosition { state, piece } => {
+                try_func(|s| Self::piece_position(s, piece), state)
+            }
             Command::Render {
                 state,
                 label,
