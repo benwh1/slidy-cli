@@ -2,6 +2,10 @@
 name = "slidy-cli"
 version = "0.4.0"
 edition = "2021"
+description = "Command line interface for working with sliding puzzles, based on the `slidy` crate"
+license = "SSPL-1.0"
+repository = "https://github.com/benwh1/slidy-cli"
+keywords = ["cli", "puzzle", "15-puzzle"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
