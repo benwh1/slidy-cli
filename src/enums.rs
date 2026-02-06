@@ -26,18 +26,18 @@ pub enum LabelType {
 }
 
 impl LabelType {
-    pub fn to_box_dyn_label(&self, grid_size: Option<(u64, u64)>) -> Option<Box<dyn Label>> {
+    pub fn to_box_dyn_label(self, grid_size: Option<(u64, u64)>) -> Option<Box<dyn Label>> {
         match self {
-            LabelType::Trivial => Some(Box::new(Trivial)),
-            LabelType::RowGrids => Some(Box::new(RowGrids)),
-            LabelType::Rows => Some(Box::new(Rows)),
-            LabelType::Fringe => Some(Box::new(Fringe)),
-            LabelType::SquareFringe => Some(Box::new(SquareFringe)),
-            LabelType::SplitFringe => Some(Box::new(SplitFringe)),
-            LabelType::SplitSquareFringe => Some(Box::new(SplitSquareFringe)),
-            LabelType::Diagonals => Some(Box::new(Diagonals)),
-            LabelType::Checkerboard => Some(Box::new(Checkerboard)),
-            LabelType::Grids => grid_size
+            Self::Trivial => Some(Box::new(Trivial)),
+            Self::RowGrids => Some(Box::new(RowGrids)),
+            Self::Rows => Some(Box::new(Rows)),
+            Self::Fringe => Some(Box::new(Fringe)),
+            Self::SquareFringe => Some(Box::new(SquareFringe)),
+            Self::SplitFringe => Some(Box::new(SplitFringe)),
+            Self::SplitSquareFringe => Some(Box::new(SplitSquareFringe)),
+            Self::Diagonals => Some(Box::new(Diagonals)),
+            Self::Checkerboard => Some(Box::new(Checkerboard)),
+            Self::Grids => grid_size
                 .and_then(|g| Scaled::new(RowGrids, g).ok())
                 .map(|l| Box::new(l) as Box<dyn Label>),
         }
@@ -52,11 +52,11 @@ pub enum ColoringType {
 }
 
 impl ColoringType {
-    pub fn to_box_dyn_coloring(&self) -> Box<dyn Coloring> {
+    pub fn to_box_dyn_coloring(self) -> Box<dyn Coloring> {
         match self {
-            ColoringType::None => Box::new(Monochrome::new(Rgba::new(0.0, 0.0, 0.0, 0.0))),
-            ColoringType::Rainbow => Box::new(Rainbow::default()),
-            ColoringType::Black => Box::new(Monochrome::new(Rgba::new(0.0, 0.0, 0.0, 1.0))),
+            Self::None => Box::new(Monochrome::new(Rgba::new(0.0, 0.0, 0.0, 0.0))),
+            Self::Rainbow => Box::new(Rainbow::default()),
+            Self::Black => Box::new(Monochrome::new(Rgba::new(0.0, 0.0, 0.0, 1.0))),
         }
     }
 }

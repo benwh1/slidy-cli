@@ -40,7 +40,7 @@ impl Runner {
         }
     }
 
-    fn apply(&self, state: &mut Puzzle, alg: &Algorithm) {
+    fn apply(state: &mut Puzzle, alg: &Algorithm) {
         if state.try_apply_alg(alg) {
             println!("{state}");
         } else {
@@ -48,18 +48,16 @@ impl Runner {
         }
     }
 
-    fn apply_to_solved(&self, alg: &Algorithm, size: Size) -> Result<(), Box<dyn Error>> {
+    fn apply_to_solved(alg: &Algorithm, size: Size) {
         let mut state = Puzzle::new(size);
-        self.apply(&mut state, alg);
-
-        Ok(())
+        Self::apply(&mut state, alg);
     }
 
-    fn concat(&self, alg: &Algorithm, prefix: &Algorithm, suffix: &Algorithm) {
+    fn concat(alg: &Algorithm, prefix: &Algorithm, suffix: &Algorithm) {
         println!("{prefix}{alg}{suffix}");
     }
 
-    fn embed(&self, state: &Puzzle, target: &mut Puzzle) {
+    fn embed(state: &Puzzle, target: &mut Puzzle) {
         if state.try_embed_into(target) {
             println!("{target}");
         } else {
@@ -85,7 +83,7 @@ impl Runner {
         }
     }
 
-    fn format(&self, alg: &Algorithm, long: bool, spaced: bool) {
+    fn format(alg: &Algorithm, long: bool, spaced: bool) {
         let s = match (long, spaced) {
             (true, true) => alg.display_long_spaced().to_string(),
             (true, false) => alg.display_long_unspaced().to_string(),
@@ -95,14 +93,14 @@ impl Runner {
         println!("{s}");
     }
 
-    fn format_state(&self, state: &Puzzle, formatter: StateFormatter) {
+    fn format_state(state: &Puzzle, formatter: StateFormatter) {
         match formatter {
             StateFormatter::Inline => println!("{}", state.display_inline()),
             StateFormatter::Grid => println!("{}", state.display_grid()),
         }
     }
 
-    fn from_solution(&self, alg: &Algorithm, size: Size) {
+    fn from_solution(alg: &Algorithm, size: Size) {
         let mut p = Puzzle::new(size);
         if p.try_apply_alg(&alg.inverse()) {
             println!("{p}");
@@ -111,7 +109,7 @@ impl Runner {
         }
     }
 
-    fn generate(&self, number: u64, size: Size, s: &impl Scrambler) -> Result<(), Box<dyn Error>> {
+    fn generate(number: u64, size: Size, s: &impl Scrambler) {
         let mut p = Puzzle::new(size);
 
         for _ in 0..number {
@@ -119,21 +117,19 @@ impl Runner {
             s.scramble(&mut p);
             println!("{p}");
         }
-
-        Ok(())
     }
 
-    fn invert(&self, alg: &mut Algorithm) {
+    fn invert(alg: &mut Algorithm) {
         alg.invert();
         println!("{alg}");
     }
 
-    fn length(&self, alg: &Algorithm, metric: Metric) {
+    fn length(alg: &Algorithm, metric: Metric) {
         let len = alg.len_metric(metric);
         println!("{len}");
     }
 
-    fn md(&self, state: &Puzzle) {
+    fn md(state: &Puzzle) {
         if state.is_solvable() {
             let b: u64 = ManhattanDistance(&RowGrids).bound(state);
             println!("{b}");
@@ -195,7 +191,6 @@ impl Runner {
     }
 
     fn render(
-        &self,
         state: &Puzzle,
         label_type: LabelType,
         coloring_type: ColoringType,
@@ -250,7 +245,7 @@ impl Runner {
         Ok(())
     }
 
-    fn simplify(&self, alg: &mut Algorithm, verbose: bool) {
+    fn simplify(alg: &mut Algorithm, verbose: bool) {
         let orig: u64 = alg.len_stm();
         alg.simplify();
         let new: u64 = alg.len_stm();
@@ -265,7 +260,7 @@ impl Runner {
         }
     }
 
-    fn slice(&self, alg: &Algorithm, start: u64, end: Option<u64>) -> Result<(), Box<dyn Error>> {
+    fn slice(alg: &Algorithm, start: u64, end: Option<u64>) -> Result<(), Box<dyn Error>> {
         let end = end.unwrap_or_else(|| alg.len_stm());
         let slice = alg.try_slice(start..end)?;
         println!("{slice}");
@@ -273,7 +268,7 @@ impl Runner {
         Ok(())
     }
 
-    fn solvable(&self, state: &Puzzle) {
+    fn solvable(state: &Puzzle) {
         println!("{}", state.is_solvable());
     }
 
@@ -338,21 +333,21 @@ impl Runner {
         match args.command {
             Command::Apply { state, alg } => match (state, alg) {
                 (None, None) => unreachable!(),
-                (None, Some(alg)) => loop_func(|s| self.apply(s, &alg)),
-                (Some(state), None) => loop_func(|a| self.apply(&mut state.clone(), a)),
+                (None, Some(alg)) => loop_func(|s| Self::apply(s, &alg)),
+                (Some(state), None) => loop_func(|a| Self::apply(&mut state.clone(), a)),
                 (Some(mut state), Some(alg)) => {
-                    self.apply(&mut state, &alg);
+                    Self::apply(&mut state, &alg);
                     Ok(())
                 }
             },
             Command::ApplyToSolved { alg, size } => {
-                try_func(|a| self.apply_to_solved(a, size), alg)
+                try_func(|a| Self::apply_to_solved(a, size), alg)
             }
             Command::Concat {
                 alg,
                 prefix,
                 suffix,
-            } => try_func(|a| self.concat(a, &prefix, &suffix), alg),
+            } => try_func(|a| Self::concat(a, &prefix, &suffix), alg),
             Command::Embed {
                 state,
                 target,
@@ -362,10 +357,10 @@ impl Runner {
 
                 match (state, target) {
                     (None, None) => unreachable!(),
-                    (None, Some(target)) => loop_func(|s| self.embed(s, &mut target.clone())),
-                    (Some(state), None) => loop_func(|t| self.embed(&state.clone(), t)),
+                    (None, Some(target)) => loop_func(|s| Self::embed(s, &mut target.clone())),
+                    (Some(state), None) => loop_func(|t| Self::embed(&state.clone(), t)),
                     (Some(state), Some(mut target)) => {
-                        self.embed(&state, &mut target);
+                        Self::embed(&state, &mut target);
                         Ok(())
                     }
                 }
@@ -380,12 +375,12 @@ impl Runner {
                 alg,
             ),
             Command::Format { alg, long, spaced } => {
-                try_func(|a| self.format(a, long, spaced), alg)
+                try_func(|a| Self::format(a, long, spaced), alg)
             }
             Command::FormatState { state, format } => {
-                try_func(|s| self.format_state(s, format), state)
+                try_func(|s| Self::format_state(s, format), state)
             }
-            Command::FromSolution { alg, size } => try_func(|a| self.from_solution(a, size), alg),
+            Command::FromSolution { alg, size } => try_func(|a| Self::from_solution(a, size), alg),
             Command::Generate {
                 number,
                 size,
@@ -396,7 +391,7 @@ impl Runner {
                 ..
             } => {
                 if random_moves {
-                    self.generate(
+                    Self::generate(
                         number,
                         size,
                         &RandomMoves {
@@ -404,14 +399,16 @@ impl Runner {
                             allow_backtracking,
                             allow_illegal_moves,
                         },
-                    )
+                    );
                 } else {
-                    self.generate(number, size, &RandomState)
+                    Self::generate(number, size, &RandomState);
                 }
+
+                Ok(())
             }
-            Command::Invert { alg } => try_func(|a| self.invert(a), alg),
-            Command::Length { alg, metric } => try_func(|a| self.length(a, metric), alg),
-            Command::Md { state } => try_func(|s| self.md(s), state),
+            Command::Invert { alg } => try_func(Self::invert, alg),
+            Command::Length { alg, metric } => try_func(|a| Self::length(a, metric), alg),
+            Command::Md { state } => try_func(|s| Self::md(s), state),
             Command::OptDiff { alg, size, metric } => {
                 try_func(|a| self.opt_diff(a, metric, size), alg)
             }
@@ -433,7 +430,7 @@ impl Runner {
                 output,
             } => try_func_once(
                 |s| {
-                    self.render(
+                    Self::render(
                         s,
                         label,
                         coloring,
@@ -448,9 +445,9 @@ impl Runner {
                 },
                 state,
             ),
-            Command::Simplify { alg, verbose } => try_func(|a| self.simplify(a, verbose), alg),
-            Command::Slice { alg, start, end } => try_func(|a| self.slice(a, start, end), alg),
-            Command::Solvable { state } => try_func(|s| self.solvable(s), state),
+            Command::Simplify { alg, verbose } => try_func(|a| Self::simplify(a, verbose), alg),
+            Command::Slice { alg, start, end } => try_func(|a| Self::slice(a, start, end), alg),
+            Command::Solvable { state } => try_func(|s| Self::solvable(s), state),
             Command::Solve {
                 state,
                 metric,

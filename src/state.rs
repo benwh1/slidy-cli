@@ -90,6 +90,8 @@ impl State {
                                 pdb
                             },
                             |bytes| {
+                                // SAFETY: this computes a checksum to verify correctness, which is
+                                // good enough here.
                                 unsafe { PdbTy::try_from_bytes(bytes.into_boxed_slice()) }
                                     .unwrap_or_else(|| {
                                         let pdb = PdbTy::new();
@@ -136,18 +138,23 @@ impl State {
                     .get_or_init(|| {
                         let pdb_file = pdb_cache_dir.join("4x4-mtm.bin");
 
-                        if let Ok(bytes) = std::fs::read(&pdb_file) {
-                            unsafe { Solver4x4Mtm::try_with_pdb_bytes(bytes.into_boxed_slice()) }
-                                .unwrap_or_else(|| {
-                                    let solver = Solver4x4Mtm::new();
-                                    std::fs::write(&pdb_file, solver.pdb_bytes()).unwrap();
-                                    solver
-                                })
-                        } else {
+                        let make_solver = || {
                             let solver = Solver4x4Mtm::new();
                             std::fs::write(&pdb_file, solver.pdb_bytes()).unwrap();
                             solver
-                        }
+                        };
+
+                        std::fs::read(&pdb_file).map_or_else(
+                            |_| make_solver(),
+                            |bytes| {
+                                // SAFETY: this computes a checksum to verify correctness, which is
+                                // good enough here.
+                                unsafe {
+                                    Solver4x4Mtm::try_with_pdb_bytes(bytes.into_boxed_slice())
+                                }
+                                .unwrap_or_else(make_solver)
+                            },
+                        )
                     })
                     .solve(puzzle)
                     .unwrap(),
