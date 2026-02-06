@@ -160,9 +160,11 @@ impl Runner {
         metric: Metric,
         length: u64,
     ) -> Result<(), Box<dyn Error>> {
+        alg.simplify();
+
         let mut idx = 0;
         while idx + length <= alg.len_metric(metric) {
-            let slice = alg.try_slice(idx..idx + length)?;
+            let slice = alg.slice_metric(metric, idx..idx + length)?;
             let Some(size) = slice.min_applicable_size() else {
                 idx += 1;
                 continue;
@@ -175,9 +177,11 @@ impl Runner {
             if solution.len_metric(metric) == length {
                 idx += 1;
             } else {
-                let mut start = Algorithm::from(alg.try_slice(0..idx)?);
+                let mut start = Algorithm::from(alg.slice_metric(metric, 0..idx)?);
                 let middle = solution.inverse();
-                let end = Algorithm::from(alg.try_slice(idx + length..alg.len_metric(metric))?);
+                let end = Algorithm::from(
+                    alg.slice_metric(metric, idx + length..alg.len_metric(metric))?,
+                );
                 start += middle;
                 start += end;
 
