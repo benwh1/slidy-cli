@@ -232,6 +232,9 @@ pub enum Command {
 
         #[clap(short, long)]
         end: Option<u64>,
+
+        #[clap(short, long, default_value = "stm")]
+        metric: Metric,
     },
 
     #[clap(about = "Checks if puzzle states are solvable")]

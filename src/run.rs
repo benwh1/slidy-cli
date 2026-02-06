@@ -268,9 +268,14 @@ impl Runner {
         }
     }
 
-    fn slice(alg: &Algorithm, start: u64, end: Option<u64>) -> Result<(), Box<dyn Error>> {
+    fn slice(
+        alg: &Algorithm,
+        start: u64,
+        end: Option<u64>,
+        metric: Metric,
+    ) -> Result<(), Box<dyn Error>> {
         let end = end.unwrap_or_else(|| alg.len_stm());
-        let slice = alg.try_slice(start..end)?;
+        let slice = alg.slice_metric(metric, start..end)?;
         println!("{slice}");
 
         Ok(())
@@ -465,7 +470,12 @@ impl Runner {
                 state,
             ),
             Command::Simplify { alg, verbose } => try_func(|a| Self::simplify(a, verbose), alg),
-            Command::Slice { alg, start, end } => try_func(|a| Self::slice(a, start, end), alg),
+            Command::Slice {
+                alg,
+                start,
+                end,
+                metric,
+            } => try_func(|a| Self::slice(a, start, end, metric), alg),
             Command::Solvable { state } => try_func(|s| Self::solvable(s), state),
             Command::Solve {
                 state,
