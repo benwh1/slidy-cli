@@ -22,7 +22,6 @@ pub enum Command {
 
     #[clap(about = "Applies algorithms to the solved state")]
     ApplyToSolved {
-        #[clap(short, long)]
         alg: Option<Algorithm>,
 
         #[clap(short, long)]
