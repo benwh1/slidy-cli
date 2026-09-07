@@ -264,7 +264,7 @@ impl Runner {
 
             let diff = orig - new;
             let percent = diff as f32 * 100.0 / orig as f32;
-            println!("New length: {new} [-{diff}, -{percent:.4}%]",);
+            println!("New length: {new} [-{diff}, -{percent:.4}%]");
         }
     }
 
