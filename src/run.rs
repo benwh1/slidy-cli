@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{error::Error, ops::ControlFlow};
 
 use slidy::{
     algorithm::algorithm::Algorithm,
@@ -15,6 +15,7 @@ use slidy::{
         sliding_puzzle::SlidingPuzzle as _,
     },
     solver::{
+        config::SolverConfig,
         generic_solver::GenericSolver,
         heuristic::{manhattan::ManhattanDistance, Heuristic as _},
         solver::Solver as _,
@@ -275,49 +276,43 @@ impl Runner {
         state: &Puzzle,
         metric: Metric,
         label: LabelType,
-        verbose: bool,
+        config: SolverConfig,
     ) -> Result<(), Box<dyn Error>> {
-        let a = match label {
+        match label {
             LabelType::Trivial => {
                 let mut s = GenericSolver::new(ManhattanDistance(Trivial), Trivial);
-                s.solve(state)?
+                s.solve_with_config(state, config)?;
             }
-            LabelType::RowGrids => self.state.solve(state, metric),
+            LabelType::RowGrids => self.state.solve_with_config(state, metric, config),
             LabelType::Rows => {
                 let mut s = GenericSolver::new(ManhattanDistance(Rows), Rows);
-                s.solve(state)?
+                s.solve_with_config(state, config)?;
             }
             LabelType::Fringe => {
                 let mut s = GenericSolver::new(ManhattanDistance(Fringe), Fringe);
-                s.solve(state)?
+                s.solve_with_config(state, config)?;
             }
             LabelType::SquareFringe => {
                 let mut s = GenericSolver::new(ManhattanDistance(SquareFringe), SquareFringe);
-                s.solve(state)?
+                s.solve_with_config(state, config)?;
             }
             LabelType::SplitFringe => {
                 let mut s = GenericSolver::new(ManhattanDistance(SplitFringe), SplitFringe);
-                s.solve(state)?
+                s.solve_with_config(state, config)?;
             }
             LabelType::SplitSquareFringe => {
                 let mut s =
                     GenericSolver::new(ManhattanDistance(SplitSquareFringe), SplitSquareFringe);
-                s.solve(state)?
+                s.solve_with_config(state, config)?;
             }
             LabelType::Diagonals => {
                 let mut s = GenericSolver::new(ManhattanDistance(Diagonals), Diagonals);
-                s.solve(state)?
+                s.solve_with_config(state, config)?;
             }
             LabelType::Checkerboard => {
                 let mut s = GenericSolver::new(ManhattanDistance(Checkerboard), Checkerboard);
-                s.solve(state)?
+                s.solve_with_config(state, config)?;
             }
-        };
-
-        println!("{a}");
-
-        if verbose {
-            println!("{} moves", a.len_metric(metric));
         }
 
         Ok(())
@@ -462,8 +457,39 @@ impl Runner {
                 state,
                 metric,
                 label,
+                num_solutions,
+                min_depth,
+                max_depth,
+                depth_beyond_optimal,
+                show_progress,
                 verbose,
-            } => try_func(|s| self.solve(s, metric, label, verbose), state),
+            } => try_func(
+                |s| {
+                    let config = SolverConfig {
+                        min: min_depth,
+                        max: max_depth,
+                        depth_beyond_optimal,
+                        num_solutions,
+                        end_of_iter_callback: show_progress.then_some(Box::new(
+                            |stats| -> ControlFlow<()> {
+                                let depth = stats.depth;
+                                println!("Finished searching depth {depth}");
+                                ControlFlow::Continue(())
+                            },
+                        )),
+                        solution_callback: Some(Box::new(move |alg| -> ControlFlow<()> {
+                            println!("{alg}");
+                            if verbose {
+                                println!("{} moves", alg.len_metric(metric));
+                            }
+                            ControlFlow::Continue(())
+                        })),
+                    };
+
+                    self.solve(s, metric, label, config)
+                },
+                state,
+            ),
             Command::Transpose { alg } => try_func(|a| Self::transpose(a), alg),
         }
     }

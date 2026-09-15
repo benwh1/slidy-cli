@@ -1,10 +1,11 @@
-use std::cell::OnceCell;
+use std::{cell::OnceCell, ops::ControlFlow};
 
 use directories::ProjectDirs;
 use slidy::{
     algorithm::algorithm::Algorithm,
     puzzle::{label::label::RowGrids, puzzle::Puzzle, sliding_puzzle::SlidingPuzzle as _},
     solver::{
+        config::SolverConfig,
         generic_solver::GenericSolver,
         heuristic::manhattan::ManhattanDistance,
         small::pdb::{
@@ -64,6 +65,25 @@ impl State {
     }
 
     pub fn solve(&mut self, puzzle: &Puzzle, metric: Metric) -> Algorithm {
+        let (sender, receiver) = std::sync::mpsc::channel();
+
+        let solution_callback: Box<dyn Fn(Algorithm) -> ControlFlow<()> + Send + Sync> =
+            Box::new(move |alg| {
+                sender.send(alg).unwrap();
+                ControlFlow::Break(())
+            });
+
+        let config = SolverConfig {
+            solution_callback: Some(solution_callback),
+            ..Default::default()
+        };
+
+        self.solve_with_config(puzzle, metric, config);
+
+        receiver.recv().unwrap()
+    }
+
+    pub fn solve_with_config(&mut self, puzzle: &Puzzle, metric: Metric, config: SolverConfig) {
         let mut pdb_cache_dir = ProjectDirs::from("", "", "slidy-cli")
             .unwrap()
             .cache_dir()
@@ -104,7 +124,7 @@ impl State {
 
                         SolverTy::with_pdb(pdb)
                     })
-                    .solve(puzzle)
+                    .solve_with_config(puzzle, config)
                     .unwrap()
             }};
         }
@@ -120,10 +140,10 @@ impl State {
                 (4, 4) => self
                     .solver_4x4_stm
                     .get_mut_or_init(Solver4x4Stm::default)
-                    .solve(puzzle)
+                    .solve_with_config(puzzle, config)
                     .unwrap(),
                 _ => GenericSolver::new(ManhattanDistance(RowGrids), RowGrids)
-                    .solve(puzzle)
+                    .solve_with_config(puzzle, config)
                     .unwrap(),
             },
             Metric::Mtm => match (w, h) {
@@ -158,7 +178,7 @@ impl State {
                             },
                         )
                     })
-                    .solve(puzzle)
+                    .solve_with_config(puzzle, config)
                     .unwrap(),
                 _ => todo!("solving {w}x{h} in MTM is not yet supported"),
             },

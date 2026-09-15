@@ -239,7 +239,7 @@ pub enum Command {
     #[clap(about = "Checks if puzzle states are solvable")]
     Solvable { state: Option<Puzzle> },
 
-    #[clap(about = "Finds one optimal solution to a puzzle state")]
+    #[clap(about = "Finds solutions to a puzzle state")]
     Solve {
         state: Option<Puzzle>,
 
@@ -248,6 +248,21 @@ pub enum Command {
 
         #[clap(short, long, default_value = "row-grids")]
         label: LabelType,
+
+        #[clap(long, default_value_t = 0)]
+        min_depth: u64,
+
+        #[clap(long, default_value_t = u64::MAX)]
+        max_depth: u64,
+
+        #[clap(short = 'n', long, default_value_t = 1)]
+        num_solutions: u64,
+
+        #[clap(long, default_value_t = u64::MAX)]
+        depth_beyond_optimal: u64,
+
+        #[clap(long, default_value_t = false)]
+        show_progress: bool,
 
         #[clap(short, long)]
         verbose: bool,
