@@ -7,7 +7,7 @@ use slidy::{
     solver::{
         config::SolverConfig,
         generic_solver::GenericSolver,
-        heuristic::manhattan::ManhattanDistance,
+        heuristic::{manhattan::ManhattanDistance, mtm::MtmHeuristic},
         small::pdb::{
             Pdb2x2Mtm, Pdb2x2Stm, Pdb3x2Mtm, Pdb3x2Stm, Pdb3x3Mtm, Pdb3x3Stm, Pdb4x2Mtm, Pdb4x2Stm,
             Pdb4x3Mtm, Pdb4x3Stm, Pdb5x2Mtm, Pdb5x2Stm, Pdb6x2Mtm, Pdb6x2Stm,
@@ -180,7 +180,9 @@ impl State {
                     })
                     .solve_with_config(puzzle, config)
                     .unwrap(),
-                _ => todo!("solving {w}x{h} in MTM is not yet supported"),
+                _ => GenericSolver::new(MtmHeuristic(ManhattanDistance(RowGrids)), RowGrids)
+                    .solve_with_config(puzzle, config)
+                    .unwrap(),
             },
         }
     }
