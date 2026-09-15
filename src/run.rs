@@ -17,7 +17,7 @@ use slidy::{
     solver::{
         generic_solver::GenericSolver,
         heuristic::{manhattan::ManhattanDistance, Heuristic as _},
-        solver::Solver,
+        solver::Solver as _,
     },
 };
 
@@ -239,9 +239,9 @@ impl Runner {
     }
 
     fn simplify(alg: &mut Algorithm, verbose: bool) {
-        let orig: u64 = alg.len_stm();
+        let orig = alg.len_stm();
         alg.simplify();
-        let new: u64 = alg.len_stm();
+        let new = alg.len_stm();
 
         println!("{alg}");
         if verbose {
