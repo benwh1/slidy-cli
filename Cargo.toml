@@ -10,13 +10,13 @@ keywords = ["cli", "puzzle", "15-puzzle"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-clap = { version = "^4.5", features = ["derive"] }
-directories = "^6.0"
+clap = { version = "^4", features = ["derive"] }
+directories = "^6"
 libc = "^0.2"
 palette = "^0.7"
-slidy = "^0.3"
+slidy = { version = "^0.5", features = ["palette"] }
 svg = "^0.18"
-thiserror = "^2.0"
+thiserror = "^2"
 
 [[bin]]
 name = "slidy"

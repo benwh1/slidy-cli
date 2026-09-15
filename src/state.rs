@@ -5,12 +5,13 @@ use slidy::{
     algorithm::algorithm::Algorithm,
     puzzle::{label::label::RowGrids, puzzle::Puzzle, sliding_puzzle::SlidingPuzzle as _},
     solver::{
+        generic_solver::GenericSolver,
         heuristic::manhattan::ManhattanDistance,
         small::pdb::{
             Pdb2x2Mtm, Pdb2x2Stm, Pdb3x2Mtm, Pdb3x2Stm, Pdb3x3Mtm, Pdb3x3Stm, Pdb4x2Mtm, Pdb4x2Stm,
             Pdb4x3Mtm, Pdb4x3Stm, Pdb5x2Mtm, Pdb5x2Stm, Pdb6x2Mtm, Pdb6x2Stm,
         },
-        solver::Solver,
+        solver::Solver as _,
         Solver2x2Mtm, Solver2x2Stm, Solver3x2Mtm, Solver3x2Stm, Solver3x3Mtm, Solver3x3Stm,
         Solver4x2Mtm, Solver4x2Stm, Solver4x3Mtm, Solver4x3Stm, Solver4x4Mtm, Solver4x4Stm,
         Solver5x2Mtm, Solver5x2Stm, Solver6x2Mtm, Solver6x2Stm,
@@ -62,7 +63,7 @@ impl State {
         }
     }
 
-    pub fn solve(&self, puzzle: &Puzzle, metric: Metric) -> Algorithm {
+    pub fn solve(&mut self, puzzle: &Puzzle, metric: Metric) -> Algorithm {
         let mut pdb_cache_dir = ProjectDirs::from("", "", "slidy-cli")
             .unwrap()
             .cache_dir()
@@ -77,7 +78,7 @@ impl State {
         macro_rules! solve {
             ($field:ident, $pdb_file:literal, $pdb_ty:ty, $solver_ty:ty) => {{
                 self.$field
-                    .get_or_init(|| {
+                    .get_mut_or_init(|| {
                         type PdbTy = $pdb_ty;
                         type SolverTy = $solver_ty;
 
@@ -85,7 +86,7 @@ impl State {
 
                         let pdb = std::fs::read(&pdb_file).map_or_else(
                             |_| {
-                                let pdb = PdbTy::new();
+                                let pdb = PdbTy::default();
                                 std::fs::write(&pdb_file, pdb.as_ref()).unwrap();
                                 pdb
                             },
@@ -94,7 +95,7 @@ impl State {
                                 // good enough here.
                                 unsafe { PdbTy::try_from_bytes(bytes.into_boxed_slice()) }
                                     .unwrap_or_else(|| {
-                                        let pdb = PdbTy::new();
+                                        let pdb = PdbTy::default();
                                         std::fs::write(&pdb_file, pdb.as_ref()).unwrap();
                                         pdb
                                     })
@@ -118,10 +119,10 @@ impl State {
                 (6, 2) | (2, 6) => solve!(solver_6x2_stm, "6x2-stm.bin", Pdb6x2Stm, Solver6x2Stm),
                 (4, 4) => self
                     .solver_4x4_stm
-                    .get_or_init(Solver4x4Stm::new)
+                    .get_mut_or_init(Solver4x4Stm::default)
                     .solve(puzzle)
                     .unwrap(),
-                _ => Solver::new(&ManhattanDistance(&RowGrids), &RowGrids)
+                _ => GenericSolver::new(ManhattanDistance(RowGrids), RowGrids)
                     .solve(puzzle)
                     .unwrap(),
             },
@@ -135,12 +136,13 @@ impl State {
                 (6, 2) | (2, 6) => solve!(solver_6x2_mtm, "6x2-mtm.bin", Pdb6x2Mtm, Solver6x2Mtm),
                 (4, 4) => self
                     .solver_4x4_mtm
-                    .get_or_init(|| {
+                    .get_mut_or_init(|| {
                         let pdb_file = pdb_cache_dir.join("4x4-mtm.bin");
 
                         let make_solver = || {
-                            let solver = Solver4x4Mtm::new();
-                            std::fs::write(&pdb_file, solver.pdb_bytes()).unwrap();
+                            let solver = Solver4x4Mtm::default();
+                            let pdb = solver.pdb();
+                            std::fs::write(&pdb_file, pdb.as_ref()).unwrap();
                             solver
                         };
 

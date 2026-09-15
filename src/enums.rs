@@ -2,13 +2,11 @@ use clap::ValueEnum;
 use palette::rgb::Rgba;
 use slidy::puzzle::{
     coloring::{Coloring, Monochrome, Rainbow},
-    label::{
-        label::{
-            Checkerboard, Diagonals, Fringe, Label, RowGrids, Rows, SplitFringe, SplitSquareFringe,
-            SquareFringe, Trivial,
-        },
-        scaled::Scaled,
+    label::label::{
+        Checkerboard, Diagonals, Fringe, Label, RowGrids, Rows, SplitFringe, SplitSquareFringe,
+        SquareFringe, Trivial,
     },
+    size::Size,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
@@ -22,24 +20,34 @@ pub enum LabelType {
     SplitSquareFringe,
     Diagonals,
     Checkerboard,
-    Grids,
 }
 
-impl LabelType {
-    pub fn to_box_dyn_label(self, grid_size: Option<(u64, u64)>) -> Option<Box<dyn Label>> {
+impl Label for LabelType {
+    fn position_label(&self, size: Size, pos: (u64, u64)) -> u64 {
         match self {
-            Self::Trivial => Some(Box::new(Trivial)),
-            Self::RowGrids => Some(Box::new(RowGrids)),
-            Self::Rows => Some(Box::new(Rows)),
-            Self::Fringe => Some(Box::new(Fringe)),
-            Self::SquareFringe => Some(Box::new(SquareFringe)),
-            Self::SplitFringe => Some(Box::new(SplitFringe)),
-            Self::SplitSquareFringe => Some(Box::new(SplitSquareFringe)),
-            Self::Diagonals => Some(Box::new(Diagonals)),
-            Self::Checkerboard => Some(Box::new(Checkerboard)),
-            Self::Grids => grid_size
-                .and_then(|g| Scaled::new(RowGrids, g).ok())
-                .map(|l| Box::new(l) as Box<dyn Label>),
+            Self::Trivial => Trivial.position_label(size, pos),
+            Self::RowGrids => RowGrids.position_label(size, pos),
+            Self::Rows => Rows.position_label(size, pos),
+            Self::Fringe => Fringe.position_label(size, pos),
+            Self::SquareFringe => SquareFringe.position_label(size, pos),
+            Self::SplitFringe => SplitFringe.position_label(size, pos),
+            Self::SplitSquareFringe => SplitSquareFringe.position_label(size, pos),
+            Self::Diagonals => Diagonals.position_label(size, pos),
+            Self::Checkerboard => Checkerboard.position_label(size, pos),
+        }
+    }
+
+    fn num_labels(&self, size: Size) -> u64 {
+        match self {
+            Self::Trivial => Trivial.num_labels(size),
+            Self::RowGrids => RowGrids.num_labels(size),
+            Self::Rows => Rows.num_labels(size),
+            Self::Fringe => Fringe.num_labels(size),
+            Self::SquareFringe => SquareFringe.num_labels(size),
+            Self::SplitFringe => SplitFringe.num_labels(size),
+            Self::SplitSquareFringe => SplitSquareFringe.num_labels(size),
+            Self::Diagonals => Diagonals.num_labels(size),
+            Self::Checkerboard => Checkerboard.num_labels(size),
         }
     }
 }

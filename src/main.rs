@@ -1,3 +1,5 @@
+#![feature(once_cell_get_mut)]
+
 mod algorithm_ext;
 mod args;
 mod command;
@@ -19,6 +21,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         libc::signal(libc::SIGPIPE, libc::SIG_DFL);
     }
 
-    let runner = Runner::new();
+    let mut runner = Runner::new();
     runner.run(Args::parse())
 }

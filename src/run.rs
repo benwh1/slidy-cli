@@ -3,7 +3,7 @@ use std::error::Error;
 use slidy::{
     algorithm::algorithm::Algorithm,
     puzzle::{
-        color_scheme::{tiled::Tiled, ColorScheme, Scheme},
+        color_scheme::{ColorScheme, Scheme},
         label::label::{
             Checkerboard, Diagonals, Fringe, RowGrids, Rows, SplitFringe, SplitSquareFringe,
             SquareFringe, Trivial,
@@ -15,6 +15,7 @@ use slidy::{
         sliding_puzzle::SlidingPuzzle as _,
     },
     solver::{
+        generic_solver::GenericSolver,
         heuristic::{manhattan::ManhattanDistance, Heuristic as _},
         solver::Solver,
     },
@@ -65,7 +66,13 @@ impl Runner {
         }
     }
 
-    fn filter_optimal(&self, alg: &Algorithm, size: Size, metric: Metric, keep_suboptimal: bool) {
+    fn filter_optimal(
+        &mut self,
+        alg: &Algorithm,
+        size: Size,
+        metric: Metric,
+        keep_suboptimal: bool,
+    ) {
         let mut p = Puzzle::new(size);
         let inverse = alg.inverse();
 
@@ -131,14 +138,14 @@ impl Runner {
 
     fn md(state: &Puzzle) {
         if state.is_solvable() {
-            let b: u64 = ManhattanDistance(&RowGrids).bound(state);
+            let b = ManhattanDistance(RowGrids).bound(state);
             println!("{b}");
         } else {
             println!("Unsolvable");
         }
     }
 
-    fn opt_diff(&self, alg: &Algorithm, metric: Metric, size: Size) {
+    fn opt_diff(&mut self, alg: &Algorithm, metric: Metric, size: Size) {
         let mut p = Puzzle::new(size);
         p.apply_alg(&alg.inverse());
 
@@ -151,7 +158,7 @@ impl Runner {
     }
 
     fn optimize(
-        &self,
+        &mut self,
         alg: &mut Algorithm,
         metric: Metric,
         length: u64,
@@ -210,44 +217,22 @@ impl Runner {
         font_size: f32,
         output: &str,
     ) -> Result<(), Box<dyn Error>> {
-        let grid_size = {
-            let (width, height) = state.size().into();
-            (width.div_ceil(2), height.div_ceil(2))
-        };
-
-        let label = label_type.to_box_dyn_label(Some(grid_size)).unwrap();
         let coloring = coloring_type.to_box_dyn_coloring();
-
-        let base_scheme = Box::new(Scheme::new(label, &coloring));
-        let subscheme = if label_type == LabelType::Grids {
-            let grid_size = Size::new(grid_size.0, grid_size.1)?;
-
-            Some(Box::new(Tiled::new(
-                Scheme::new(SplitFringe, &coloring),
-                grid_size,
-            )))
-        } else {
-            None
-        };
-
-        let border_label = border_label.to_box_dyn_label(Some(grid_size)).unwrap();
+        let base_scheme = Box::new(Scheme::new(label_type, &coloring));
         let border_coloring = border_coloring.to_box_dyn_coloring();
         let border_scheme =
             Box::new(Scheme::new(border_label, &border_coloring)) as Box<dyn ColorScheme>;
 
-        let mut renderer: RendererBuilder<_, _, _> = RendererBuilder::with_scheme(&base_scheme)
-            .text(Text::default().font_size(font_size))
-            .borders(Borders::with_scheme(border_scheme).thickness(border_thickness))
-            .tile_size(tile_size)
-            .tile_gap(tile_gap);
-
-        if let Some(subscheme) = subscheme {
-            renderer = renderer.subscheme(subscheme);
-        }
+        let renderer: RendererBuilder<_, Box<dyn ColorScheme>, _> =
+            RendererBuilder::with_scheme(&base_scheme)
+                .text(Text::default().font_size(font_size))
+                .borders(Borders::with_scheme(border_scheme).thickness(border_thickness))
+                .tile_size(tile_size)
+                .tile_gap(tile_gap);
 
         let renderer = renderer.build();
 
-        let svg = renderer.render(state)?;
+        let svg = renderer.render(state);
         svg::save(output, &svg)?;
 
         Ok(())
@@ -286,51 +271,47 @@ impl Runner {
     }
 
     fn solve(
-        &self,
+        &mut self,
         state: &Puzzle,
         metric: Metric,
         label: LabelType,
         verbose: bool,
     ) -> Result<(), Box<dyn Error>> {
-        if metric == Metric::Mtm && label != LabelType::RowGrids {
-            return Err("solving labels other than row grids in MTM is not supported".into());
-        }
-
         let a = match label {
             LabelType::Trivial => {
-                let mut s = Solver::new(&ManhattanDistance(&Trivial), &Trivial);
+                let mut s = GenericSolver::new(ManhattanDistance(Trivial), Trivial);
                 s.solve(state)?
             }
             LabelType::RowGrids => self.state.solve(state, metric),
             LabelType::Rows => {
-                let mut s = Solver::new(&ManhattanDistance(&Rows), &Rows);
+                let mut s = GenericSolver::new(ManhattanDistance(Rows), Rows);
                 s.solve(state)?
             }
             LabelType::Fringe => {
-                let mut s = Solver::new(&ManhattanDistance(&Fringe), &Fringe);
+                let mut s = GenericSolver::new(ManhattanDistance(Fringe), Fringe);
                 s.solve(state)?
             }
             LabelType::SquareFringe => {
-                let mut s = Solver::new(&ManhattanDistance(&SquareFringe), &SquareFringe);
+                let mut s = GenericSolver::new(ManhattanDistance(SquareFringe), SquareFringe);
                 s.solve(state)?
             }
             LabelType::SplitFringe => {
-                let mut s = Solver::new(&ManhattanDistance(&SplitFringe), &SplitFringe);
+                let mut s = GenericSolver::new(ManhattanDistance(SplitFringe), SplitFringe);
                 s.solve(state)?
             }
             LabelType::SplitSquareFringe => {
-                let mut s = Solver::new(&ManhattanDistance(&SplitSquareFringe), &SplitSquareFringe);
+                let mut s =
+                    GenericSolver::new(ManhattanDistance(SplitSquareFringe), SplitSquareFringe);
                 s.solve(state)?
             }
             LabelType::Diagonals => {
-                let mut s = Solver::new(&ManhattanDistance(&Diagonals), &Diagonals);
+                let mut s = GenericSolver::new(ManhattanDistance(Diagonals), Diagonals);
                 s.solve(state)?
             }
             LabelType::Checkerboard => {
-                let mut s = Solver::new(&ManhattanDistance(&Checkerboard), &Checkerboard);
+                let mut s = GenericSolver::new(ManhattanDistance(Checkerboard), Checkerboard);
                 s.solve(state)?
             }
-            LabelType::Grids => unimplemented!(),
         };
 
         println!("{a}");
@@ -347,7 +328,7 @@ impl Runner {
         println!("{transposed}");
     }
 
-    pub fn run(&self, args: Args) -> Result<(), Box<dyn Error>> {
+    pub fn run(&mut self, args: Args) -> Result<(), Box<dyn Error>> {
         match args.command {
             Command::Apply { state, alg } => match (state, alg) {
                 (None, None) => unreachable!(),
