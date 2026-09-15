@@ -1,7 +1,10 @@
 use std::{error::Error, ops::ControlFlow};
 
 use slidy::{
-    algorithm::algorithm::Algorithm,
+    algorithm::{
+        algorithm::Algorithm,
+        metric::{Mtm, Stm},
+    },
     puzzle::{
         color_scheme::{ColorScheme, Scheme},
         label::label::{
@@ -17,7 +20,7 @@ use slidy::{
     solver::{
         config::SolverConfig,
         generic_solver::GenericSolver,
-        heuristic::{manhattan::ManhattanDistance, Heuristic as _},
+        heuristic::{manhattan::ManhattanDistance, mtm::MtmHeuristic, Heuristic as _},
         solver::Solver as _,
     },
 };
@@ -278,41 +281,102 @@ impl Runner {
         label: LabelType,
         config: SolverConfig,
     ) -> Result<(), Box<dyn Error>> {
-        match label {
-            LabelType::Trivial => {
-                let mut s = GenericSolver::new(ManhattanDistance(Trivial), Trivial);
-                s.solve_with_config(state, config)?;
-            }
-            LabelType::RowGrids => self.state.solve_with_config(state, metric, config),
-            LabelType::Rows => {
-                let mut s = GenericSolver::new(ManhattanDistance(Rows), Rows);
-                s.solve_with_config(state, config)?;
-            }
-            LabelType::Fringe => {
-                let mut s = GenericSolver::new(ManhattanDistance(Fringe), Fringe);
-                s.solve_with_config(state, config)?;
-            }
-            LabelType::SquareFringe => {
-                let mut s = GenericSolver::new(ManhattanDistance(SquareFringe), SquareFringe);
-                s.solve_with_config(state, config)?;
-            }
-            LabelType::SplitFringe => {
-                let mut s = GenericSolver::new(ManhattanDistance(SplitFringe), SplitFringe);
-                s.solve_with_config(state, config)?;
-            }
-            LabelType::SplitSquareFringe => {
-                let mut s =
-                    GenericSolver::new(ManhattanDistance(SplitSquareFringe), SplitSquareFringe);
-                s.solve_with_config(state, config)?;
-            }
-            LabelType::Diagonals => {
-                let mut s = GenericSolver::new(ManhattanDistance(Diagonals), Diagonals);
-                s.solve_with_config(state, config)?;
-            }
-            LabelType::Checkerboard => {
-                let mut s = GenericSolver::new(ManhattanDistance(Checkerboard), Checkerboard);
-                s.solve_with_config(state, config)?;
-            }
+        type GenericSolverStm<P, S, H> = GenericSolver<P, S, H, Stm>;
+        type GenericSolverMtm<P, S, H> = GenericSolver<P, S, H, Mtm>;
+
+        match metric {
+            Metric::Stm => match label {
+                LabelType::Trivial => {
+                    let mut s = GenericSolverStm::new(ManhattanDistance(Trivial), Trivial);
+                    s.solve_with_config(state, config)?;
+                }
+                LabelType::RowGrids => self.state.solve_with_config(state, metric, config),
+                LabelType::Rows => {
+                    let mut s = GenericSolverStm::new(ManhattanDistance(Rows), Rows);
+                    s.solve_with_config(state, config)?;
+                }
+                LabelType::Fringe => {
+                    let mut s = GenericSolverStm::new(ManhattanDistance(Fringe), Fringe);
+                    s.solve_with_config(state, config)?;
+                }
+                LabelType::SquareFringe => {
+                    let mut s =
+                        GenericSolverStm::new(ManhattanDistance(SquareFringe), SquareFringe);
+                    s.solve_with_config(state, config)?;
+                }
+                LabelType::SplitFringe => {
+                    let mut s = GenericSolverStm::new(ManhattanDistance(SplitFringe), SplitFringe);
+                    s.solve_with_config(state, config)?;
+                }
+                LabelType::SplitSquareFringe => {
+                    let mut s = GenericSolverStm::new(
+                        ManhattanDistance(SplitSquareFringe),
+                        SplitSquareFringe,
+                    );
+                    s.solve_with_config(state, config)?;
+                }
+                LabelType::Diagonals => {
+                    let mut s = GenericSolverStm::new(ManhattanDistance(Diagonals), Diagonals);
+                    s.solve_with_config(state, config)?;
+                }
+                LabelType::Checkerboard => {
+                    let mut s =
+                        GenericSolverStm::new(ManhattanDistance(Checkerboard), Checkerboard);
+                    s.solve_with_config(state, config)?;
+                }
+            },
+            Metric::Mtm => match label {
+                LabelType::Trivial => {
+                    let mut s =
+                        GenericSolverMtm::new(MtmHeuristic(ManhattanDistance(Trivial)), Trivial);
+                    s.solve_with_config(state, config)?;
+                }
+                LabelType::RowGrids => self.state.solve_with_config(state, metric, config),
+                LabelType::Rows => {
+                    let mut s = GenericSolverMtm::new(MtmHeuristic(ManhattanDistance(Rows)), Rows);
+                    s.solve_with_config(state, config)?;
+                }
+                LabelType::Fringe => {
+                    let mut s =
+                        GenericSolverMtm::new(MtmHeuristic(ManhattanDistance(Fringe)), Fringe);
+                    s.solve_with_config(state, config)?;
+                }
+                LabelType::SquareFringe => {
+                    let mut s = GenericSolverMtm::new(
+                        MtmHeuristic(ManhattanDistance(SquareFringe)),
+                        SquareFringe,
+                    );
+                    s.solve_with_config(state, config)?;
+                }
+                LabelType::SplitFringe => {
+                    let mut s = GenericSolverMtm::new(
+                        MtmHeuristic(ManhattanDistance(SplitFringe)),
+                        SplitFringe,
+                    );
+                    s.solve_with_config(state, config)?;
+                }
+                LabelType::SplitSquareFringe => {
+                    let mut s = GenericSolverMtm::new(
+                        MtmHeuristic(ManhattanDistance(SplitSquareFringe)),
+                        SplitSquareFringe,
+                    );
+                    s.solve_with_config(state, config)?;
+                }
+                LabelType::Diagonals => {
+                    let mut s = GenericSolverMtm::new(
+                        MtmHeuristic(ManhattanDistance(Diagonals)),
+                        Diagonals,
+                    );
+                    s.solve_with_config(state, config)?;
+                }
+                LabelType::Checkerboard => {
+                    let mut s = GenericSolverMtm::new(
+                        MtmHeuristic(ManhattanDistance(Checkerboard)),
+                        Checkerboard,
+                    );
+                    s.solve_with_config(state, config)?;
+                }
+            },
         }
 
         Ok(())
