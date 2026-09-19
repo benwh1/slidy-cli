@@ -9,7 +9,7 @@ use slidy::puzzle::{
     size::Size,
 };
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, ValueEnum)]
 pub enum LabelType {
     Trivial,
     RowGrids,
@@ -75,7 +75,7 @@ pub enum StateFormatter {
     Grid,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, ValueEnum)]
 pub enum Metric {
     Stm,
     Mtm,

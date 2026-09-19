@@ -402,8 +402,6 @@ checksum = "8ee5873ec9cce0195efcb7a4e9507a04cd49aec9c83d0389df45b1ef7ba2e649"
 [[package]]
 name = "slidy"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d11a3f54751adc2f25afec068b7a8dd735cb94ef95cb8dcf86478309625b91b8"
 dependencies = [
  "enterpolation",
  "itertools",
