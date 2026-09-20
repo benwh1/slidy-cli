@@ -1,16 +1,10 @@
 use std::{error::Error, ops::ControlFlow};
 
 use slidy::{
-    algorithm::{
-        algorithm::Algorithm,
-        metric::{Mtm, Stm},
-    },
+    algorithm::algorithm::Algorithm,
     puzzle::{
         color_scheme::{ColorScheme, Scheme},
-        label::label::{
-            Checkerboard, Diagonals, Fringe, RowGrids, Rows, SplitFringe, SplitSquareFringe,
-            SquareFringe, Trivial,
-        },
+        label::label::RowGrids,
         puzzle::Puzzle,
         render::{Borders, RendererBuilder, Text},
         scrambler::{RandomMoves, RandomState, Scrambler},
@@ -19,8 +13,7 @@ use slidy::{
     },
     solver::{
         config::SolverConfig,
-        generic_solver::GenericSolver,
-        heuristic::{manhattan::ManhattanDistance, mtm::MtmHeuristic, Heuristic as _},
+        heuristic::{manhattan::ManhattanDistance, Heuristic as _},
         solver::Solver as _,
     },
 };
@@ -30,6 +23,7 @@ use crate::{
     args::Args,
     command::Command,
     enums::{ColoringType, LabelType, Metric, StateFormatter},
+    solver::SolverContext,
     state::State,
     util::{loop_func, try_func, try_func_once},
 };
@@ -76,15 +70,21 @@ impl Runner {
         size: Size,
         metric: Metric,
         keep_suboptimal: bool,
-    ) {
+    ) -> Result<(), Box<dyn Error>> {
         let mut p = Puzzle::new(size);
         let inverse = alg.inverse();
 
         if !p.try_apply_alg(&inverse) {
-            return;
+            Err("failed to apply inverse algorithm")?;
         }
 
-        let solution = self.state.solve(&p, metric);
+        let solution = self.state.solver.solve_with_context(
+            &p,
+            &SolverContext {
+                metric,
+                label: LabelType::RowGrids,
+            },
+        )?;
 
         let alg_len = alg.len_metric(metric);
         let opt_len = solution.len_metric(metric);
@@ -92,6 +92,8 @@ impl Runner {
         if (alg_len == opt_len) ^ keep_suboptimal {
             println!("{alg}");
         }
+
+        Ok(())
     }
 
     fn format(alg: &Algorithm, long: bool, spaced: bool) {
@@ -149,16 +151,29 @@ impl Runner {
         }
     }
 
-    fn opt_diff(&mut self, alg: &Algorithm, metric: Metric, size: Size) {
+    fn opt_diff(
+        &mut self,
+        alg: &Algorithm,
+        metric: Metric,
+        size: Size,
+    ) -> Result<(), Box<dyn Error>> {
         let mut p = Puzzle::new(size);
         p.apply_alg(&alg.inverse());
 
-        let solution = self.state.solve(&p, metric);
+        let solution = self.state.solver.solve_with_context(
+            &p,
+            &SolverContext {
+                metric,
+                label: LabelType::RowGrids,
+            },
+        )?;
 
         let alg_len = alg.len_metric(metric);
         let opt_len = solution.len_metric(metric);
 
         println!("{}", alg_len - opt_len);
+
+        Ok(())
     }
 
     fn optimize(
@@ -179,7 +194,13 @@ impl Runner {
             let mut puzzle = Puzzle::new(size);
             puzzle.apply_alg(&slice);
 
-            let solution = self.state.solve(&puzzle, metric);
+            let solution = self.state.solver.solve_with_context(
+                &puzzle,
+                &SolverContext {
+                    metric,
+                    label: LabelType::RowGrids,
+                },
+            )?;
 
             if solution.len_metric(metric) == length {
                 idx += 1;
@@ -276,110 +297,17 @@ impl Runner {
 
     fn solve(
         &mut self,
-        state: &Puzzle,
+        puzzle: &Puzzle,
         metric: Metric,
         label: LabelType,
         config: SolverConfig,
     ) -> Result<(), Box<dyn Error>> {
-        type GenericSolverStm<P, S, H> = GenericSolver<P, S, H, Stm>;
-        type GenericSolverMtm<P, S, H> = GenericSolver<P, S, H, Mtm>;
+        let context = SolverContext { metric, label };
 
-        match metric {
-            Metric::Stm => match label {
-                LabelType::Trivial => {
-                    let mut s = GenericSolverStm::new(ManhattanDistance(Trivial), Trivial);
-                    s.solve_with_config(state, config)?;
-                }
-                LabelType::RowGrids => self.state.solve_with_config(state, metric, config),
-                LabelType::Rows => {
-                    let mut s = GenericSolverStm::new(ManhattanDistance(Rows), Rows);
-                    s.solve_with_config(state, config)?;
-                }
-                LabelType::Fringe => {
-                    let mut s = GenericSolverStm::new(ManhattanDistance(Fringe), Fringe);
-                    s.solve_with_config(state, config)?;
-                }
-                LabelType::SquareFringe => {
-                    let mut s =
-                        GenericSolverStm::new(ManhattanDistance(SquareFringe), SquareFringe);
-                    s.solve_with_config(state, config)?;
-                }
-                LabelType::SplitFringe => {
-                    let mut s = GenericSolverStm::new(ManhattanDistance(SplitFringe), SplitFringe);
-                    s.solve_with_config(state, config)?;
-                }
-                LabelType::SplitSquareFringe => {
-                    let mut s = GenericSolverStm::new(
-                        ManhattanDistance(SplitSquareFringe),
-                        SplitSquareFringe,
-                    );
-                    s.solve_with_config(state, config)?;
-                }
-                LabelType::Diagonals => {
-                    let mut s = GenericSolverStm::new(ManhattanDistance(Diagonals), Diagonals);
-                    s.solve_with_config(state, config)?;
-                }
-                LabelType::Checkerboard => {
-                    let mut s =
-                        GenericSolverStm::new(ManhattanDistance(Checkerboard), Checkerboard);
-                    s.solve_with_config(state, config)?;
-                }
-            },
-            Metric::Mtm => match label {
-                LabelType::Trivial => {
-                    let mut s =
-                        GenericSolverMtm::new(MtmHeuristic(ManhattanDistance(Trivial)), Trivial);
-                    s.solve_with_config(state, config)?;
-                }
-                LabelType::RowGrids => self.state.solve_with_config(state, metric, config),
-                LabelType::Rows => {
-                    let mut s = GenericSolverMtm::new(MtmHeuristic(ManhattanDistance(Rows)), Rows);
-                    s.solve_with_config(state, config)?;
-                }
-                LabelType::Fringe => {
-                    let mut s =
-                        GenericSolverMtm::new(MtmHeuristic(ManhattanDistance(Fringe)), Fringe);
-                    s.solve_with_config(state, config)?;
-                }
-                LabelType::SquareFringe => {
-                    let mut s = GenericSolverMtm::new(
-                        MtmHeuristic(ManhattanDistance(SquareFringe)),
-                        SquareFringe,
-                    );
-                    s.solve_with_config(state, config)?;
-                }
-                LabelType::SplitFringe => {
-                    let mut s = GenericSolverMtm::new(
-                        MtmHeuristic(ManhattanDistance(SplitFringe)),
-                        SplitFringe,
-                    );
-                    s.solve_with_config(state, config)?;
-                }
-                LabelType::SplitSquareFringe => {
-                    let mut s = GenericSolverMtm::new(
-                        MtmHeuristic(ManhattanDistance(SplitSquareFringe)),
-                        SplitSquareFringe,
-                    );
-                    s.solve_with_config(state, config)?;
-                }
-                LabelType::Diagonals => {
-                    let mut s = GenericSolverMtm::new(
-                        MtmHeuristic(ManhattanDistance(Diagonals)),
-                        Diagonals,
-                    );
-                    s.solve_with_config(state, config)?;
-                }
-                LabelType::Checkerboard => {
-                    let mut s = GenericSolverMtm::new(
-                        MtmHeuristic(ManhattanDistance(Checkerboard)),
-                        Checkerboard,
-                    );
-                    s.solve_with_config(state, config)?;
-                }
-            },
-        }
-
-        Ok(())
+        Ok(self
+            .state
+            .solver
+            .solve_with_config_and_context(puzzle, config, &context)?)
     }
 
     fn transpose(alg: &Algorithm) {

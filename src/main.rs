@@ -1,5 +1,3 @@
-#![feature(once_cell_get_mut)]
-
 mod algorithm_ext;
 mod args;
 mod command;
