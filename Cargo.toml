@@ -14,7 +14,7 @@ clap = { version = "^4", features = ["derive"] }
 directories = "^6"
 libc = "^0.2"
 palette = "^0.7"
-slidy = { path = "../slidy", features = ["palette"] }
+slidy = { version = "^0.7", features = ["palette"] }
 svg = "^0.18"
 thiserror = "^2"
 
