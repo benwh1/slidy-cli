@@ -32,6 +32,8 @@ use crate::{
 type BoxSolver = Box<dyn SolverT<Puzzle, Context = ()>>;
 type BoxSolverInit = Box<dyn FnOnce() -> BoxSolver>;
 
+type Remap = Box<dyn Fn(SolverKey) -> Option<SolverKey>>;
+
 fn pdb_dir() -> PathBuf {
     let mut dir = ProjectDirs::from("", "", "slidy-cli")
         .unwrap()
@@ -58,7 +60,7 @@ fn pdb_file_path(size: Size, label: LabelType, metric: Metric) -> PathBuf {
     file_path
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct SolverKey {
     size: Size,
     label: LabelType,
@@ -67,12 +69,14 @@ struct SolverKey {
 
 pub struct Solver {
     solvers: HashMap<SolverKey, LazyCell<BoxSolver, BoxSolverInit>>,
+    remaps: Vec<Remap>,
 }
 
 impl Solver {
     pub fn new() -> Self {
         let mut this = Self {
             solvers: HashMap::new(),
+            remaps: Vec::new(),
         };
 
         std::fs::create_dir_all(pdb_dir()).unwrap();
@@ -260,6 +264,26 @@ impl Solver {
         register_projection_solver!(4, 4, Fringe, Fringe);
         register_projection_solver!(4, 4, SplitFringe, SplitFringePruneTarget4x4);
 
+        // Remaps
+
+        // Map square fringe to normal fringe on square puzzles
+        this.register_remap(|key| {
+            if !key.size.is_square() {
+                return None;
+            }
+
+            let new_label = match key.label {
+                LabelType::SquareFringe => LabelType::Fringe,
+                LabelType::SplitSquareFringe => LabelType::SplitFringe,
+                _ => return None,
+            };
+
+            Some(SolverKey {
+                label: new_label,
+                ..key
+            })
+        });
+
         this
     }
 
@@ -276,6 +300,21 @@ impl Solver {
             },
             LazyCell::new(Box::new(move || Box::new(solver()))),
         );
+    }
+
+    fn register_remap<F>(&mut self, remap: F)
+    where
+        F: Fn(SolverKey) -> Option<SolverKey> + 'static,
+    {
+        self.remaps.push(Box::new(remap));
+    }
+
+    fn remap_key(&self, mut key: SolverKey) -> SolverKey {
+        while let Some(new_key) = self.remaps.iter().find_map(|remap| remap(key)) {
+            key = new_key;
+        }
+
+        key
     }
 }
 
@@ -294,18 +333,19 @@ impl SolverT<Puzzle> for Solver {
         config: SolverConfig,
         context: &Self::Context,
     ) -> Result<(), SolverError> {
-        let size = puzzle.size();
-        let SolverContext { metric, label } = *context;
-
-        let key = SolverKey {
-            size,
-            metric,
-            label,
-        };
+        let key = self.remap_key(SolverKey {
+            size: puzzle.size(),
+            label: context.label,
+            metric: context.metric,
+        });
 
         match self.solvers.get_mut(&key) {
             Some(s) => s.solve_with_config(puzzle, config),
-            None => fallback_solver(*context).solve_with_config(puzzle, config),
+            None => fallback_solver(SolverContext {
+                metric: key.metric,
+                label: key.label,
+            })
+            .solve_with_config(puzzle, config),
         }
     }
 }
