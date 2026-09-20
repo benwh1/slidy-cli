@@ -1,4 +1,6 @@
-use std::{cell::LazyCell, collections::HashMap};
+pub mod projections;
+
+use std::{cell::LazyCell, collections::HashMap, fs::File, io::BufReader, path::PathBuf};
 
 use directories::ProjectDirs;
 use slidy::{
@@ -13,24 +15,54 @@ use slidy::{
         sliding_puzzle::SlidingPuzzle as _,
     },
     solver::{
-        config::SolverConfig,
+        config::{PdbConfig, SolverConfig},
         generic_solver::GenericSolver,
         heuristic::{manhattan::ManhattanDistance, mtm::MtmHeuristic},
+        projection::{pdb::Pdb as ProjectionPdb, solver::Solver as ProjectionSolver},
         solver::{Solver as SolverT, SolverError},
         Solver4x4Mtm, Solver4x4Stm,
     },
 };
 
-use crate::enums::{LabelType, Metric};
+use crate::{
+    enums::{LabelType, Metric},
+    solver::projections::SplitFringePruneTarget4x4,
+};
 
 type BoxSolver = Box<dyn SolverT<Puzzle, Context = ()>>;
 type BoxSolverInit = Box<dyn FnOnce() -> BoxSolver>;
 
+fn pdb_dir() -> PathBuf {
+    let mut dir = ProjectDirs::from("", "", "slidy-cli")
+        .unwrap()
+        .cache_dir()
+        .to_path_buf();
+    dir.push("solver");
+    dir.push("pdb");
+
+    dir
+}
+
+fn pdb_file_path(size: Size, label: LabelType, metric: Metric) -> PathBuf {
+    let path = format!(
+        "{w}x{h}-{label}-{metric}.pdb.zst",
+        w = size.width(),
+        h = size.height(),
+        label = label.pdb_file_name(),
+        metric = metric.pdb_file_name(),
+    );
+
+    let mut file_path = pdb_dir();
+    file_path.push(path);
+
+    file_path
+}
+
 #[derive(PartialEq, Eq, Hash)]
 struct SolverKey {
     size: Size,
-    metric: Metric,
     label: LabelType,
+    metric: Metric,
 }
 
 pub struct Solver {
@@ -43,30 +75,20 @@ impl Solver {
             solvers: HashMap::new(),
         };
 
-        let mut pdb_cache_dir = ProjectDirs::from("", "", "slidy-cli")
-            .unwrap()
-            .cache_dir()
-            .to_path_buf();
-        pdb_cache_dir.push("solver");
-        pdb_cache_dir.push("pdb");
-
-        std::fs::create_dir_all(&pdb_cache_dir).unwrap();
+        std::fs::create_dir_all(pdb_dir()).unwrap();
 
         macro_rules! small {
-            ($pdb_file:expr, $pdb_ty:ty, $solver_ty:ty) => {{
-                let pdb_file = $pdb_file.clone();
-                let pdb_cache_dir = pdb_cache_dir.clone();
+            ($pdb_file_path:expr, $pdb_ty:ty, $solver_ty:ty) => {{
+                let pdb_file_path = $pdb_file_path.clone();
 
                 move || {
                     type PdbTy = $pdb_ty;
                     type SolverTy = $solver_ty;
 
-                    let pdb_file = pdb_cache_dir.join(&pdb_file);
-
-                    let pdb = std::fs::read(&pdb_file).map_or_else(
+                    let pdb = std::fs::read(&pdb_file_path).map_or_else(
                         |_| {
                             let pdb = PdbTy::default();
-                            std::fs::write(&pdb_file, pdb.as_ref()).unwrap();
+                            std::fs::write(&pdb_file_path, pdb.as_ref()).unwrap();
                             pdb
                         },
                         |bytes| {
@@ -75,7 +97,7 @@ impl Solver {
                             unsafe { PdbTy::try_from_bytes(bytes.into_boxed_slice()) }
                                 .unwrap_or_else(|| {
                                     let pdb = PdbTy::default();
-                                    std::fs::write(&pdb_file, pdb.as_ref()).unwrap();
+                                    std::fs::write(&pdb_file_path, pdb.as_ref()).unwrap();
                                     pdb
                                 })
                         },
@@ -100,19 +122,19 @@ impl Solver {
 
                 let size = Size::new(max, min).unwrap();
 
-                let file_name_stm = format!("{max}x{min}-stm.bin");
-                let file_name_mtm = format!("{max}x{min}-mtm.bin");
+                let file_name_stm = pdb_file_path(size, LabelType::RowGrids, Metric::Stm);
+                let file_name_mtm = pdb_file_path(size, LabelType::RowGrids, Metric::Mtm);
 
                 this.register(
                     size,
-                    Metric::Stm,
                     LabelType::RowGrids,
+                    Metric::Stm,
                     small!(file_name_stm, PdbStm, SolverStm),
                 );
                 this.register(
                     size,
-                    Metric::Mtm,
                     LabelType::RowGrids,
+                    Metric::Mtm,
                     small!(file_name_mtm, PdbMtm, SolverMtm),
                 );
 
@@ -121,14 +143,14 @@ impl Solver {
 
                     this.register(
                         size,
-                        Metric::Stm,
                         LabelType::RowGrids,
+                        Metric::Stm,
                         small!(file_name_stm, PdbStm, SolverStm),
                     );
                     this.register(
                         size,
-                        Metric::Mtm,
                         LabelType::RowGrids,
+                        Metric::Mtm,
                         small!(file_name_mtm, PdbMtm, SolverMtm),
                     );
                 }
@@ -148,29 +170,28 @@ impl Solver {
 
         this.register(
             Size::new(4, 4).unwrap(),
-            Metric::Stm,
             LabelType::RowGrids,
+            Metric::Stm,
             Solver4x4Stm::default,
         );
 
         this.register(
             Size::new(4, 4).unwrap(),
-            Metric::Mtm,
             LabelType::RowGrids,
+            Metric::Mtm,
             {
-                let pdb_cache_dir = pdb_cache_dir.clone();
-
                 move || {
-                    let pdb_file = pdb_cache_dir.join("4x4-mtm.bin");
+                    let size = Size::new(4, 4).unwrap();
+                    let pdb_file_path = pdb_file_path(size, LabelType::RowGrids, Metric::Stm);
 
                     let make_solver = || {
                         let solver = Solver4x4Mtm::default();
                         let pdb = solver.pdb();
-                        std::fs::write(&pdb_file, pdb.as_ref()).unwrap();
+                        std::fs::write(&pdb_file_path, pdb.as_ref()).unwrap();
                         solver
                     };
 
-                    std::fs::read(&pdb_file).map_or_else(
+                    std::fs::read(&pdb_file_path).map_or_else(
                         |_| make_solver(),
                         |bytes| {
                             // SAFETY: this computes a checksum to verify correctness, which is
@@ -183,10 +204,66 @@ impl Solver {
             },
         );
 
+        // 4x4 labels
+
+        macro_rules! register_projection_solver {
+            ($w:literal, $h:literal, $target:tt, $prune_target:tt, $metric:tt) => {{
+                let w = $w;
+                let h = $h;
+                let target = LabelType::$target;
+                let metric = Metric::$metric;
+
+                let size = Size::new(w, h).unwrap();
+
+                let solver = move || {
+                    let builder = ProjectionSolver::builder()
+                        .size(size)
+                        .target($target)
+                        .prune_target($prune_target)
+                        .metric($metric);
+
+                    let pdb_file_path = pdb_file_path(size, target, metric);
+
+                    if let Ok(file) = File::open(&pdb_file_path) {
+                        let reader = BufReader::new(file);
+                        let bytes = zstd::decode_all(reader).unwrap().into_boxed_slice();
+                        let pdb = unsafe { ProjectionPdb::from_bytes_unchecked(bytes) };
+
+                        builder.pdb(pdb).build().unwrap()
+                    } else {
+                        let solver = builder
+                            .pdb_config(PdbConfig {
+                                end_of_iter_callback: Some(Box::new(|s| {
+                                    println!("depth {} new {} total {}", s.depth, s.new, s.total);
+                                })),
+                            })
+                            .build()
+                            .unwrap();
+                        let bytes = solver.pdb().as_ref();
+                        let compressed = zstd::encode_all(bytes, 0).unwrap();
+
+                        std::fs::write(&pdb_file_path, compressed).unwrap();
+
+                        solver
+                    }
+                };
+
+                this.register(size, target, metric, solver);
+            }};
+            ($w:literal, $h:literal, $target:tt, $prune_target:tt) => {
+                register_projection_solver!($w, $h, $target, $prune_target, Stm);
+                register_projection_solver!($w, $h, $target, $prune_target, Mtm);
+            };
+        }
+
+        register_projection_solver!(4, 4, Rows, Rows);
+        register_projection_solver!(4, 4, Fringe, Fringe);
+        register_projection_solver!(4, 4, SplitFringe, SplitFringePruneTarget4x4);
+
         this
     }
 
-    fn register<S, F>(&mut self, size: Size, metric: Metric, label: LabelType, solver: F)
+    fn register<S, F>(&mut self, size: Size, label: LabelType, metric: Metric, solver: F)
     where
         S: SolverT<Puzzle, Context = ()> + 'static,
         F: FnOnce() -> S + 'static,
@@ -194,8 +271,8 @@ impl Solver {
         self.solvers.insert(
             SolverKey {
                 size,
-                metric,
                 label,
+                metric,
             },
             LazyCell::new(Box::new(move || Box::new(solver()))),
         );

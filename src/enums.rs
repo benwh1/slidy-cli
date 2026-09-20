@@ -23,6 +23,22 @@ pub enum LabelType {
     Checkerboard,
 }
 
+impl LabelType {
+    pub fn pdb_file_name(&self) -> &'static str {
+        match self {
+            Self::Trivial => "trivial",
+            Self::RowGrids => "row-grids",
+            Self::Rows => "rows",
+            Self::Fringe => "fringe",
+            Self::SquareFringe => "square-fringe",
+            Self::SplitFringe => "split-fringe",
+            Self::SplitSquareFringe => "split-square-fringe",
+            Self::Diagonals => "diagonals",
+            Self::Checkerboard => "checkerboard",
+        }
+    }
+}
+
 impl Label for LabelType {
     fn position_label(&self, size: Size, pos: (u64, u64)) -> u64 {
         match self {
@@ -83,4 +99,13 @@ pub enum Metric {
     #[default]
     Stm,
     Mtm,
+}
+
+impl Metric {
+    pub fn pdb_file_name(&self) -> &'static str {
+        match self {
+            Self::Stm => "stm",
+            Self::Mtm => "mtm",
+        }
+    }
 }
