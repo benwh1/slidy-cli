@@ -9,9 +9,10 @@ use slidy::puzzle::{
     size::Size,
 };
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, ValueEnum)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, ValueEnum)]
 pub enum LabelType {
     Trivial,
+    #[default]
     RowGrids,
     Rows,
     Fringe,
@@ -52,9 +53,10 @@ impl Label for LabelType {
     }
 }
 
-#[derive(Clone, Copy, Debug, ValueEnum)]
+#[derive(Clone, Copy, Debug, Default, ValueEnum)]
 pub enum ColoringType {
     None,
+    #[default]
     Rainbow,
     Black,
 }
@@ -69,14 +71,16 @@ impl ColoringType {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, ValueEnum)]
 pub enum StateFormatter {
+    #[default]
     Inline,
     Grid,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, ValueEnum)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, ValueEnum)]
 pub enum Metric {
+    #[default]
     Stm,
     Mtm,
 }
