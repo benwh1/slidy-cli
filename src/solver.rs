@@ -68,7 +68,7 @@ fn pdb_file_path(size: Size, label: LabelType, metric: Metric) -> PathBuf {
 }
 
 fn write_compressed_pdb(pdb_file_path: &Path, bytes: &[u8]) {
-    let file = File::create(&pdb_file_path).unwrap();
+    let file = File::create(pdb_file_path).unwrap();
     let writer = BufWriter::new(file);
 
     let mut encoder = Encoder::new(writer, 0).unwrap();
@@ -204,21 +204,24 @@ impl Solver {
                     let size = Size::new(4, 4).unwrap();
                     let pdb_file_path = pdb_file_path(size, LabelType::RowGrids, Metric::Mtm);
 
-                    if let Ok(file) = File::open(&pdb_file_path) {
-                        let reader = BufReader::new(file);
-                        let bytes = zstd::decode_all(reader).unwrap().into_boxed_slice();
+                    File::open(&pdb_file_path).map_or_else(
+                        |_| {
+                            let solver = Solver4x4Mtm::default();
 
-                        // SAFETY: this computes a checksum to verify correctness, which is
-                        // good enough here.
-                        unsafe { Solver4x4Mtm::try_with_pdb_bytes(bytes) }.unwrap()
-                    } else {
-                        let solver = Solver4x4Mtm::default();
+                            let bytes = solver.pdb().as_ref();
+                            write_compressed_pdb(&pdb_file_path, bytes);
 
-                        let bytes = solver.pdb().as_ref();
-                        write_compressed_pdb(&pdb_file_path, bytes);
+                            solver
+                        },
+                        |file| {
+                            let reader = BufReader::new(file);
+                            let bytes = zstd::decode_all(reader).unwrap().into_boxed_slice();
 
-                        solver
-                    }
+                            // SAFETY: this computes a checksum to verify correctness, which is
+                            // good enough here.
+                            unsafe { Solver4x4Mtm::try_with_pdb_bytes(bytes) }.unwrap()
+                        },
+                    )
                 }
             },
         );
@@ -501,7 +504,13 @@ impl Solver {
             let new_label = match key.label {
                 LabelType::SquareFringe => LabelType::Fringe,
                 LabelType::SplitSquareFringe => LabelType::SplitFringe,
-                _ => return None,
+                LabelType::Trivial
+                | LabelType::RowGrids
+                | LabelType::Rows
+                | LabelType::Fringe
+                | LabelType::SplitFringe
+                | LabelType::Diagonals
+                | LabelType::Checkerboard => return None,
             };
 
             Some(SolverKey {
@@ -512,12 +521,12 @@ impl Solver {
 
         // Map split square fringe 2xN to rows
         this.register_remap(|key| {
-            (key.size.width() == 2 && key.label == LabelType::SplitSquareFringe).then(|| {
+            (key.size.width() == 2 && key.label == LabelType::SplitSquareFringe).then_some(
                 SolverKey {
                     label: LabelType::Rows,
                     ..key
-                }
-            })
+                },
+            )
         });
 
         this

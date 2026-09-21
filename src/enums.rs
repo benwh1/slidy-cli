@@ -24,7 +24,7 @@ pub enum LabelType {
 }
 
 impl LabelType {
-    pub fn pdb_file_name(&self) -> &'static str {
+    pub fn pdb_file_name(self) -> &'static str {
         match self {
             Self::Trivial => "trivial",
             Self::RowGrids => "row-grids",
@@ -102,7 +102,7 @@ pub enum Metric {
 }
 
 impl Metric {
-    pub fn pdb_file_name(&self) -> &'static str {
+    pub fn pdb_file_name(self) -> &'static str {
         match self {
             Self::Stm => "stm",
             Self::Mtm => "mtm",
