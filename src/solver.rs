@@ -1,6 +1,12 @@
 pub mod projections;
 
-use std::{cell::LazyCell, collections::HashMap, fs::File, io::BufReader, path::PathBuf};
+use std::{
+    cell::LazyCell,
+    collections::HashMap,
+    fs::File,
+    io::{BufReader, BufWriter, Write as _},
+    path::PathBuf,
+};
 
 use directories::ProjectDirs;
 use slidy::{
@@ -23,6 +29,7 @@ use slidy::{
         Solver4x4Mtm, Solver4x4Stm,
     },
 };
+use zstd::Encoder;
 
 use crate::{
     enums::{LabelType, Metric},
@@ -231,6 +238,10 @@ impl Solver {
                     if let Ok(file) = File::open(&pdb_file_path) {
                         let reader = BufReader::new(file);
                         let bytes = zstd::decode_all(reader).unwrap().into_boxed_slice();
+
+                        // SAFETY: It's possible for the user to manually swap out a pdb file with
+                        // a bad file, but realistically they probably won't. We store them with a
+                        // checksum to guard against file corruption.
                         let pdb = unsafe { ProjectionPdb::from_bytes_unchecked(bytes) };
 
                         builder.pdb(pdb).build().unwrap()
@@ -244,9 +255,14 @@ impl Solver {
                             .build()
                             .unwrap();
                         let bytes = solver.pdb().as_ref();
-                        let compressed = zstd::encode_all(bytes, 0).unwrap();
 
-                        std::fs::write(&pdb_file_path, compressed).unwrap();
+                        let file = File::create(&pdb_file_path).unwrap();
+                        let writer = BufWriter::new(file);
+
+                        let mut encoder = Encoder::new(writer, 0).unwrap();
+                        encoder.include_checksum(true).unwrap();
+                        encoder.include_contentsize(true).unwrap();
+                        encoder.write_all(bytes).unwrap();
 
                         solver
                     }
