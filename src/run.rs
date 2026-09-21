@@ -310,6 +310,11 @@ impl Runner {
             .solve_with_config_and_context(puzzle, config, &context)?)
     }
 
+    fn solved_state(size: Size) -> Result<(), Box<dyn Error>> {
+        println!("{}", Puzzle::new(size));
+        Ok(())
+    }
+
     fn transpose(alg: &Algorithm) {
         let transposed = alg.transpose();
         println!("{transposed}");
@@ -482,6 +487,7 @@ impl Runner {
                 },
                 state,
             ),
+            Command::SolvedState { size } => Self::solved_state(size),
             Command::Transpose { alg } => try_func(|a| Self::transpose(a), alg),
         }
     }
