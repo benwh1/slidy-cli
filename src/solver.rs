@@ -26,7 +26,7 @@ use slidy::{
 
 use crate::{
     enums::{LabelType, Metric},
-    solver::projections::SplitFringePruneTarget4x4,
+    solver::projections::{DiagonalsPruneTarget4x4, SplitFringePruneTarget4x4},
 };
 
 type BoxSolver = Box<dyn SolverT<Puzzle, Context = ()>>;
@@ -208,7 +208,7 @@ impl Solver {
             },
         );
 
-        // 4x4 labels
+        // Labels
 
         macro_rules! register_projection_solver {
             ($w:literal, $h:literal, $target:tt, $prune_target:tt, $metric:tt) => {{
@@ -258,11 +258,219 @@ impl Solver {
                 register_projection_solver!($w, $h, $target, $prune_target, Stm);
                 register_projection_solver!($w, $h, $target, $prune_target, Mtm);
             };
+            ($w:literal, $h:literal, $target:tt) => {
+                register_projection_solver!($w, $h, $target, $target);
+            };
         }
 
-        register_projection_solver!(4, 4, Rows, Rows);
-        register_projection_solver!(4, 4, Fringe, Fringe);
+        // Rows
+
+        register_projection_solver!(2, 2, Rows);
+        register_projection_solver!(2, 3, Rows);
+        register_projection_solver!(2, 4, Rows);
+        register_projection_solver!(2, 5, Rows);
+        register_projection_solver!(2, 6, Rows);
+
+        register_projection_solver!(3, 2, Rows);
+        register_projection_solver!(3, 3, Rows);
+        register_projection_solver!(3, 4, Rows);
+        register_projection_solver!(3, 5, Rows);
+
+        register_projection_solver!(4, 2, Rows);
+        register_projection_solver!(4, 3, Rows);
+        register_projection_solver!(4, 4, Rows);
+
+        register_projection_solver!(5, 2, Rows);
+        register_projection_solver!(5, 3, Rows);
+
+        register_projection_solver!(6, 2, Rows);
+        register_projection_solver!(7, 2, Rows);
+        register_projection_solver!(8, 2, Rows);
+        register_projection_solver!(9, 2, Rows);
+        register_projection_solver!(10, 2, Rows);
+        register_projection_solver!(11, 2, Rows);
+        register_projection_solver!(12, 2, Rows);
+
+        // Fringe
+        // TODO: make small x big transpose to big x small
+
+        register_projection_solver!(2, 2, Fringe);
+        register_projection_solver!(2, 3, Fringe);
+        register_projection_solver!(2, 4, Fringe);
+        register_projection_solver!(2, 5, Fringe);
+        register_projection_solver!(2, 6, Fringe);
+        register_projection_solver!(2, 7, Fringe);
+        register_projection_solver!(2, 8, Fringe);
+        register_projection_solver!(2, 9, Fringe);
+        register_projection_solver!(2, 10, Fringe);
+        register_projection_solver!(2, 11, Fringe);
+        register_projection_solver!(2, 12, Fringe);
+        register_projection_solver!(2, 13, Fringe);
+        register_projection_solver!(2, 14, Fringe);
+
+        register_projection_solver!(3, 2, Fringe);
+        register_projection_solver!(3, 3, Fringe);
+        register_projection_solver!(3, 4, Fringe);
+        register_projection_solver!(3, 5, Fringe);
+        register_projection_solver!(3, 6, Fringe);
+
+        register_projection_solver!(4, 2, Fringe);
+        register_projection_solver!(4, 3, Fringe);
+        register_projection_solver!(4, 4, Fringe);
+
+        register_projection_solver!(5, 2, Fringe);
+        register_projection_solver!(6, 2, Fringe);
+        register_projection_solver!(7, 2, Fringe);
+        register_projection_solver!(8, 2, Fringe);
+        register_projection_solver!(9, 2, Fringe);
+        register_projection_solver!(10, 2, Fringe);
+        register_projection_solver!(11, 2, Fringe);
+        register_projection_solver!(12, 2, Fringe);
+        register_projection_solver!(13, 2, Fringe);
+        register_projection_solver!(14, 2, Fringe);
+
+        // Square fringe
+        // NxN is equivalent to fringe
+
+        register_projection_solver!(2, 3, SquareFringe);
+        register_projection_solver!(2, 4, SquareFringe);
+        register_projection_solver!(2, 5, SquareFringe);
+        register_projection_solver!(2, 6, SquareFringe);
+        register_projection_solver!(2, 7, SquareFringe);
+
+        register_projection_solver!(3, 2, SquareFringe);
+        register_projection_solver!(3, 4, SquareFringe);
+
+        register_projection_solver!(4, 2, SquareFringe);
+        register_projection_solver!(4, 3, SquareFringe);
+
+        register_projection_solver!(5, 2, SquareFringe);
+        register_projection_solver!(5, 3, SquareFringe);
+
+        register_projection_solver!(6, 2, SquareFringe);
+        register_projection_solver!(7, 2, SquareFringe);
+
+        // Split fringe
+
+        register_projection_solver!(2, 2, SplitFringe);
+        register_projection_solver!(2, 3, SplitFringe);
+        register_projection_solver!(2, 4, SplitFringe);
+        register_projection_solver!(2, 5, SplitFringe);
+        register_projection_solver!(2, 6, SplitFringe);
+        register_projection_solver!(2, 7, SplitFringe);
+        register_projection_solver!(2, 8, SplitFringe);
+        register_projection_solver!(2, 9, SplitFringe);
+        register_projection_solver!(2, 10, SplitFringe);
+
+        register_projection_solver!(3, 2, SplitFringe);
+        register_projection_solver!(3, 3, SplitFringe);
+        register_projection_solver!(3, 4, SplitFringe);
+        register_projection_solver!(3, 5, SplitFringe);
+
+        register_projection_solver!(4, 2, SplitFringe);
+        register_projection_solver!(4, 3, SplitFringe);
         register_projection_solver!(4, 4, SplitFringe, SplitFringePruneTarget4x4);
+
+        register_projection_solver!(5, 2, SplitFringe);
+        register_projection_solver!(6, 2, SplitFringe);
+        register_projection_solver!(7, 2, SplitFringe);
+        register_projection_solver!(8, 2, SplitFringe);
+        register_projection_solver!(9, 2, SplitFringe);
+        register_projection_solver!(10, 2, SplitFringe);
+
+        // Split square fringe
+        // 2xN is equivalent to rows
+        // NxN is equivalent to split fringe
+
+        register_projection_solver!(3, 2, SplitSquareFringe);
+        register_projection_solver!(3, 4, SplitSquareFringe);
+
+        register_projection_solver!(4, 2, SplitSquareFringe);
+        register_projection_solver!(4, 3, SplitSquareFringe);
+
+        register_projection_solver!(5, 2, SplitSquareFringe);
+        register_projection_solver!(6, 2, SplitSquareFringe);
+        register_projection_solver!(7, 2, SplitSquareFringe);
+
+        // Diagonals
+        // TODO: make small x big transpose to big x small
+
+        register_projection_solver!(2, 2, Diagonals);
+        register_projection_solver!(2, 3, Diagonals);
+        register_projection_solver!(2, 4, Diagonals);
+        register_projection_solver!(2, 5, Diagonals);
+        register_projection_solver!(2, 6, Diagonals);
+
+        register_projection_solver!(3, 2, Diagonals);
+        register_projection_solver!(3, 3, Diagonals);
+        register_projection_solver!(3, 4, Diagonals);
+
+        register_projection_solver!(4, 2, Diagonals);
+        register_projection_solver!(4, 3, Diagonals);
+        register_projection_solver!(4, 4, Diagonals, DiagonalsPruneTarget4x4);
+
+        register_projection_solver!(4, 2, Diagonals);
+        register_projection_solver!(5, 2, Diagonals);
+        register_projection_solver!(6, 2, Diagonals);
+        register_projection_solver!(7, 2, Diagonals);
+
+        // Checkerboard
+        // TODO: make small x big transpose to big x small
+
+        register_projection_solver!(2, 2, Checkerboard);
+        register_projection_solver!(2, 3, Checkerboard);
+        register_projection_solver!(2, 4, Checkerboard);
+        register_projection_solver!(2, 5, Checkerboard);
+        register_projection_solver!(2, 6, Checkerboard);
+        register_projection_solver!(2, 7, Checkerboard);
+        register_projection_solver!(2, 8, Checkerboard);
+        register_projection_solver!(2, 9, Checkerboard);
+        register_projection_solver!(2, 10, Checkerboard);
+        register_projection_solver!(2, 11, Checkerboard);
+        register_projection_solver!(2, 12, Checkerboard);
+        register_projection_solver!(2, 13, Checkerboard);
+        register_projection_solver!(2, 14, Checkerboard);
+
+        register_projection_solver!(3, 2, Checkerboard);
+        register_projection_solver!(3, 3, Checkerboard);
+        register_projection_solver!(3, 4, Checkerboard);
+        register_projection_solver!(3, 5, Checkerboard);
+        register_projection_solver!(3, 6, Checkerboard);
+        register_projection_solver!(3, 7, Checkerboard);
+        register_projection_solver!(3, 8, Checkerboard);
+        register_projection_solver!(3, 9, Checkerboard);
+
+        register_projection_solver!(4, 2, Checkerboard);
+        register_projection_solver!(4, 3, Checkerboard);
+        register_projection_solver!(4, 4, Checkerboard);
+        register_projection_solver!(4, 5, Checkerboard);
+        register_projection_solver!(4, 6, Checkerboard);
+        register_projection_solver!(4, 7, Checkerboard);
+
+        register_projection_solver!(5, 2, Checkerboard);
+        register_projection_solver!(5, 3, Checkerboard);
+        register_projection_solver!(5, 4, Checkerboard);
+        register_projection_solver!(5, 5, Checkerboard);
+
+        register_projection_solver!(6, 2, Checkerboard);
+        register_projection_solver!(6, 3, Checkerboard);
+        register_projection_solver!(6, 4, Checkerboard);
+
+        register_projection_solver!(7, 2, Checkerboard);
+        register_projection_solver!(7, 3, Checkerboard);
+        register_projection_solver!(7, 4, Checkerboard);
+
+        register_projection_solver!(8, 2, Checkerboard);
+        register_projection_solver!(8, 3, Checkerboard);
+
+        register_projection_solver!(9, 2, Checkerboard);
+        register_projection_solver!(9, 3, Checkerboard);
+
+        register_projection_solver!(10, 2, Checkerboard);
+        register_projection_solver!(11, 2, Checkerboard);
+        register_projection_solver!(12, 2, Checkerboard);
+        register_projection_solver!(13, 2, Checkerboard);
+        register_projection_solver!(14, 2, Checkerboard);
 
         // Remaps
 
@@ -281,6 +489,16 @@ impl Solver {
             Some(SolverKey {
                 label: new_label,
                 ..key
+            })
+        });
+
+        // Map split square fringe 2xN to rows
+        this.register_remap(|key| {
+            (key.size.width() == 2 && key.label == LabelType::SplitSquareFringe).then(|| {
+                SolverKey {
+                    label: LabelType::Rows,
+                    ..key
+                }
             })
         });
 
