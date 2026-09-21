@@ -296,7 +296,7 @@ impl Runner {
     }
 
     fn slice(alg: &Algorithm, start: u64, end: Option<u64>, metric: Metric) -> Result {
-        let end = end.unwrap_or_else(|| alg.len_stm());
+        let end = end.unwrap_or_else(|| alg.len_metric(metric));
         let slice = alg.slice_metric(metric, start..end)?;
         println!("{slice}");
 
