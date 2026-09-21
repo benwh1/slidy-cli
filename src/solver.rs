@@ -199,30 +199,28 @@ impl Solver {
             Size::new(4, 4).unwrap(),
             LabelType::RowGrids,
             Metric::Mtm,
-            {
-                move || {
-                    let size = Size::new(4, 4).unwrap();
-                    let pdb_file_path = pdb_file_path(size, LabelType::RowGrids, Metric::Mtm);
+            || {
+                let size = Size::new(4, 4).unwrap();
+                let pdb_file_path = pdb_file_path(size, LabelType::RowGrids, Metric::Mtm);
 
-                    File::open(&pdb_file_path).map_or_else(
-                        |_| {
-                            let solver = Solver4x4Mtm::default();
+                File::open(&pdb_file_path).map_or_else(
+                    |_| {
+                        let solver = Solver4x4Mtm::default();
 
-                            let bytes = solver.pdb().as_ref();
-                            write_compressed_pdb(&pdb_file_path, bytes);
+                        let bytes = solver.pdb().as_ref();
+                        write_compressed_pdb(&pdb_file_path, bytes);
 
-                            solver
-                        },
-                        |file| {
-                            let reader = BufReader::new(file);
-                            let bytes = zstd::decode_all(reader).unwrap().into_boxed_slice();
+                        solver
+                    },
+                    |file| {
+                        let reader = BufReader::new(file);
+                        let bytes = zstd::decode_all(reader).unwrap().into_boxed_slice();
 
-                            // SAFETY: this computes a checksum to verify correctness, which is
-                            // good enough here.
-                            unsafe { Solver4x4Mtm::try_with_pdb_bytes(bytes) }.unwrap()
-                        },
-                    )
-                }
+                        // SAFETY: this computes a checksum to verify correctness, which is
+                        // good enough here.
+                        unsafe { Solver4x4Mtm::try_with_pdb_bytes(bytes) }.unwrap()
+                    },
+                )
             },
         );
 
