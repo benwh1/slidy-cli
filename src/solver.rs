@@ -75,6 +75,7 @@ fn write_compressed_pdb(pdb_file_path: &Path, bytes: &[u8]) {
     encoder.include_checksum(true).unwrap();
     encoder.include_contentsize(true).unwrap();
     encoder.write_all(bytes).unwrap();
+    encoder.finish().unwrap();
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
