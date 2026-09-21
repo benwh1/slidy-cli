@@ -5,7 +5,7 @@ use std::{
     collections::HashMap,
     fs::File,
     io::{BufReader, BufWriter, Write as _},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 use directories::ProjectDirs;
@@ -67,6 +67,16 @@ fn pdb_file_path(size: Size, label: LabelType, metric: Metric) -> PathBuf {
     file_path
 }
 
+fn write_compressed_pdb(pdb_file_path: &Path, bytes: &[u8]) {
+    let file = File::create(&pdb_file_path).unwrap();
+    let writer = BufWriter::new(file);
+
+    let mut encoder = Encoder::new(writer, 0).unwrap();
+    encoder.include_checksum(true).unwrap();
+    encoder.include_contentsize(true).unwrap();
+    encoder.write_all(bytes).unwrap();
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct SolverKey {
     size: Size,
@@ -96,23 +106,21 @@ impl Solver {
                     type PdbTy = $pdb_ty;
                     type SolverTy = $solver_ty;
 
-                    let pdb = std::fs::read(&pdb_file_path).map_or_else(
-                        |_| {
-                            let pdb = PdbTy::default();
-                            std::fs::write(&pdb_file_path, pdb.as_ref()).unwrap();
-                            pdb
-                        },
-                        |bytes| {
-                            // SAFETY: this computes a checksum to verify correctness, which is
-                            // good enough here.
-                            unsafe { PdbTy::try_from_bytes(bytes.into_boxed_slice()) }
-                                .unwrap_or_else(|| {
-                                    let pdb = PdbTy::default();
-                                    std::fs::write(&pdb_file_path, pdb.as_ref()).unwrap();
-                                    pdb
-                                })
-                        },
-                    );
+                    let pdb = if let Ok(file) = File::open(&pdb_file_path) {
+                        let reader = BufReader::new(file);
+                        let bytes = zstd::decode_all(reader).unwrap().into_boxed_slice();
+
+                        // SAFETY: this computes a checksum to verify correctness, which is
+                        // good enough here.
+                        unsafe { PdbTy::try_from_bytes(bytes) }.unwrap()
+                    } else {
+                        let pdb = PdbTy::default();
+
+                        let bytes = pdb.as_ref();
+                        write_compressed_pdb(&pdb_file_path, bytes);
+
+                        pdb
+                    };
 
                     SolverTy::with_pdb(pdb)
                 }
@@ -195,22 +203,21 @@ impl Solver {
                     let size = Size::new(4, 4).unwrap();
                     let pdb_file_path = pdb_file_path(size, LabelType::RowGrids, Metric::Stm);
 
-                    let make_solver = || {
-                        let solver = Solver4x4Mtm::default();
-                        let pdb = solver.pdb();
-                        std::fs::write(&pdb_file_path, pdb.as_ref()).unwrap();
-                        solver
-                    };
+                    if let Ok(file) = File::open(&pdb_file_path) {
+                        let reader = BufReader::new(file);
+                        let bytes = zstd::decode_all(reader).unwrap().into_boxed_slice();
 
-                    std::fs::read(&pdb_file_path).map_or_else(
-                        |_| make_solver(),
-                        |bytes| {
-                            // SAFETY: this computes a checksum to verify correctness, which is
-                            // good enough here.
-                            unsafe { Solver4x4Mtm::try_with_pdb_bytes(bytes.into_boxed_slice()) }
-                                .unwrap_or_else(make_solver)
-                        },
-                    )
+                        // SAFETY: this computes a checksum to verify correctness, which is
+                        // good enough here.
+                        unsafe { Solver4x4Mtm::try_with_pdb_bytes(bytes) }.unwrap()
+                    } else {
+                        let solver = Solver4x4Mtm::default();
+
+                        let bytes = solver.pdb().as_ref();
+                        write_compressed_pdb(&pdb_file_path, bytes);
+
+                        solver
+                    }
                 }
             },
         );
@@ -254,15 +261,9 @@ impl Solver {
                             })
                             .build()
                             .unwrap();
+
                         let bytes = solver.pdb().as_ref();
-
-                        let file = File::create(&pdb_file_path).unwrap();
-                        let writer = BufWriter::new(file);
-
-                        let mut encoder = Encoder::new(writer, 0).unwrap();
-                        encoder.include_checksum(true).unwrap();
-                        encoder.include_contentsize(true).unwrap();
-                        encoder.write_all(bytes).unwrap();
+                        write_compressed_pdb(&pdb_file_path, bytes);
 
                         solver
                     }
