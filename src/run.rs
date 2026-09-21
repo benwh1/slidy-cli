@@ -495,10 +495,7 @@ impl Runner {
                 },
                 state,
             ),
-            Command::SolvedState { size } => {
-                Self::solved_state(size);
-                Ok(())
-            }
+            Command::SolvedState { size } => try_fn(|s| Self::solved_state(*s), size),
             Command::Transpose { alg } => try_fn(|a| Self::transpose(a), alg),
         }
     }

@@ -277,10 +277,7 @@ pub enum Command {
     },
 
     #[clap(about = "Prints the solved state")]
-    SolvedState {
-        #[clap(short, long, default_value_t = Size::new(4, 4).unwrap())]
-        size: Size,
-    },
+    SolvedState { size: Option<Size> },
 
     #[clap(about = "Prints the transpose of an algorithm")]
     Transpose { alg: Option<Algorithm> },
