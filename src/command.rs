@@ -67,6 +67,14 @@ pub enum Command {
         keep_suboptimal: bool,
     },
 
+    #[clap(about = "Filters out unsolvable puzzle states")]
+    FilterSolvable {
+        state: Option<Puzzle>,
+
+        #[clap(short, long)]
+        unsolvable: bool,
+    },
+
     #[clap(about = "Formats algorithms using long or short notation, with or without spaces")]
     Format {
         alg: Option<Algorithm>,

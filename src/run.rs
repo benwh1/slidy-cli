@@ -96,6 +96,12 @@ impl Runner {
         Ok(())
     }
 
+    fn filter_solvable(state: &Puzzle, keep_unsolvable: bool) {
+        if state.is_solvable() ^ keep_unsolvable {
+            println!("{state}");
+        }
+    }
+
     fn format(alg: &Algorithm, long: bool, spaced: bool) {
         let s = match (long, spaced) {
             (true, true) => alg.display_long_spaced().to_string(),
@@ -364,6 +370,9 @@ impl Runner {
                 |a| self.filter_optimal(a, size, metric, keep_suboptimal),
                 alg,
             ),
+            Command::FilterSolvable { state, unsolvable } => {
+                try_func(|s| Self::filter_solvable(s, unsolvable), state)
+            }
             Command::Format { alg, long, spaced } => {
                 try_func(|a| Self::format(a, long, spaced), alg)
             }
