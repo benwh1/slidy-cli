@@ -25,12 +25,14 @@ use crate::{
     enums::{ColoringType, LabelType, Metric, StateFormatter},
     solver::SolverContext,
     state::State,
-    util::{loop_func, try_func, try_func_once},
+    util::{loop_fn, try_fallible_fn, try_fallible_fn_once, try_fn},
 };
 
 pub struct Runner {
     state: State,
 }
+
+type Result = core::result::Result<(), Box<dyn Error>>;
 
 impl Runner {
     pub fn new() -> Self {
@@ -39,28 +41,30 @@ impl Runner {
         }
     }
 
-    fn apply(state: &mut Puzzle, alg: &Algorithm) {
+    fn apply(state: &mut Puzzle, alg: &Algorithm) -> Result {
         if state.try_apply_alg(alg) {
             println!("{state}");
+            Ok(())
         } else {
-            println!("Invalid");
+            Err("apply: failed to apply algorithm")?
         }
     }
 
-    fn apply_to_solved(alg: &Algorithm, size: Size) {
+    fn apply_to_solved(alg: &Algorithm, size: Size) -> Result {
         let mut state = Puzzle::new(size);
-        Self::apply(&mut state, alg);
+        Self::apply(&mut state, alg)
     }
 
     fn concat(alg: &Algorithm, prefix: &Algorithm, suffix: &Algorithm) {
         println!("{prefix}{alg}{suffix}");
     }
 
-    fn embed(state: &Puzzle, target: &mut Puzzle) {
+    fn embed(state: &Puzzle, target: &mut Puzzle) -> Result {
         if state.try_embed_into(target) {
             println!("{target}");
+            Ok(())
         } else {
-            println!("Invalid");
+            Err("embed: failed to embed state")?
         }
     }
 
@@ -70,12 +74,12 @@ impl Runner {
         size: Size,
         metric: Metric,
         keep_suboptimal: bool,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result {
         let mut p = Puzzle::new(size);
         let inverse = alg.inverse();
 
         if !p.try_apply_alg(&inverse) {
-            Err("failed to apply inverse algorithm")?;
+            Err("filter-optimal: failed to apply inverse algorithm")?;
         }
 
         let solution = self.state.solver.solve_with_context(
@@ -119,12 +123,14 @@ impl Runner {
         }
     }
 
-    fn from_solution(alg: &Algorithm, size: Size) {
+    fn from_solution(alg: &Algorithm, size: Size) -> Result {
         let mut p = Puzzle::new(size);
+
         if p.try_apply_alg(&alg.inverse()) {
             println!("{p}");
+            Ok(())
         } else {
-            println!("Invalid");
+            Err("from-solution: failed to apply inverse solution")?
         }
     }
 
@@ -149,20 +155,11 @@ impl Runner {
     }
 
     fn md(state: &Puzzle) {
-        if state.is_solvable() {
-            let b = ManhattanDistance(RowGrids).bound(state);
-            println!("{b}");
-        } else {
-            println!("Unsolvable");
-        }
+        let md = ManhattanDistance(RowGrids).bound(state);
+        println!("{md}");
     }
 
-    fn opt_diff(
-        &mut self,
-        alg: &Algorithm,
-        metric: Metric,
-        size: Size,
-    ) -> Result<(), Box<dyn Error>> {
+    fn opt_diff(&mut self, alg: &Algorithm, metric: Metric, size: Size) -> Result {
         let mut p = Puzzle::new(size);
         p.apply_alg(&alg.inverse());
 
@@ -182,12 +179,7 @@ impl Runner {
         Ok(())
     }
 
-    fn optimize(
-        &mut self,
-        alg: &mut Algorithm,
-        metric: Metric,
-        length: u64,
-    ) -> Result<(), Box<dyn Error>> {
+    fn optimize(&mut self, alg: &mut Algorithm, metric: Metric, length: u64) -> Result {
         alg.simplify();
 
         let mut idx = 0;
@@ -228,12 +220,26 @@ impl Runner {
         Ok(())
     }
 
-    fn piece_at(state: &Puzzle, position: u64) {
-        println!("{}", state.piece_at(position));
+    fn piece_at(state: &Puzzle, position: u64) -> Result {
+        println!(
+            "{}",
+            state
+                .try_piece_at(position)
+                .ok_or("piece-at: position out of bounds")?,
+        );
+
+        Ok(())
     }
 
-    fn piece_position(state: &Puzzle, piece: u64) {
-        println!("{}", state.piece_position(piece));
+    fn piece_position(state: &Puzzle, piece: u64) -> Result {
+        println!(
+            "{}",
+            state
+                .try_piece_position(piece)
+                .ok_or("piece-position: piece out of bounds")?,
+        );
+
+        Ok(())
     }
 
     fn render(
@@ -247,7 +253,7 @@ impl Runner {
         border_thickness: f32,
         font_size: f32,
         output: &str,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result {
         let coloring = coloring_type.to_box_dyn_coloring();
         let base_scheme = Box::new(Scheme::new(label_type, &coloring));
         let border_coloring = border_coloring.to_box_dyn_coloring();
@@ -279,17 +285,17 @@ impl Runner {
             println!("Original length: {orig}");
 
             let diff = orig - new;
-            let percent = diff as f32 * 100.0 / orig as f32;
+            let percent = if orig == 0 {
+                0.0
+            } else {
+                diff as f32 * 100.0 / orig as f32
+            };
+
             println!("New length: {new} [-{diff}, -{percent:.4}%]");
         }
     }
 
-    fn slice(
-        alg: &Algorithm,
-        start: u64,
-        end: Option<u64>,
-        metric: Metric,
-    ) -> Result<(), Box<dyn Error>> {
+    fn slice(alg: &Algorithm, start: u64, end: Option<u64>, metric: Metric) -> Result {
         let end = end.unwrap_or_else(|| alg.len_stm());
         let slice = alg.slice_metric(metric, start..end)?;
         println!("{slice}");
@@ -307,7 +313,7 @@ impl Runner {
         metric: Metric,
         label: LabelType,
         config: SolverConfig,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result {
         let context = SolverContext { metric, label };
 
         Ok(self
@@ -325,25 +331,22 @@ impl Runner {
         println!("{transposed}");
     }
 
-    pub fn run(&mut self, args: Args) -> Result<(), Box<dyn Error>> {
+    pub fn run(&mut self, args: Args) -> Result {
         match args.command {
             Command::Apply { state, alg } => match (state, alg) {
                 (None, None) => unreachable!(),
-                (None, Some(alg)) => loop_func(|s| Self::apply(s, &alg)),
-                (Some(state), None) => loop_func(|a| Self::apply(&mut state.clone(), a)),
-                (Some(mut state), Some(alg)) => {
-                    Self::apply(&mut state, &alg);
-                    Ok(())
-                }
+                (None, Some(alg)) => loop_fn(|s| Self::apply(s, &alg)),
+                (Some(state), None) => loop_fn(|a| Self::apply(&mut state.clone(), a)),
+                (Some(mut state), Some(alg)) => Self::apply(&mut state, &alg),
             },
             Command::ApplyToSolved { alg, size } => {
-                try_func(|a| Self::apply_to_solved(a, size), alg)
+                try_fallible_fn(|a| Self::apply_to_solved(a, size), alg)
             }
             Command::Concat {
                 alg,
                 prefix,
                 suffix,
-            } => try_func(|a| Self::concat(a, &prefix, &suffix), alg),
+            } => try_fn(|a| Self::concat(a, &prefix, &suffix), alg),
             Command::Embed {
                 state,
                 target,
@@ -353,12 +356,9 @@ impl Runner {
 
                 match (state, target) {
                     (None, None) => unreachable!(),
-                    (None, Some(target)) => loop_func(|s| Self::embed(s, &mut target.clone())),
-                    (Some(state), None) => loop_func(|t| Self::embed(&state.clone(), t)),
-                    (Some(state), Some(mut target)) => {
-                        Self::embed(&state, &mut target);
-                        Ok(())
-                    }
+                    (None, Some(target)) => loop_fn(|s| Self::embed(s, &mut target.clone())),
+                    (Some(state), None) => loop_fn(|t| Self::embed(&state.clone(), t)),
+                    (Some(state), Some(mut target)) => Self::embed(&state, &mut target),
                 }
             }
             Command::FilterOptimal {
@@ -366,20 +366,20 @@ impl Runner {
                 size,
                 metric,
                 keep_suboptimal,
-            } => try_func(
+            } => try_fallible_fn(
                 |a| self.filter_optimal(a, size, metric, keep_suboptimal),
                 alg,
             ),
             Command::FilterSolvable { state, unsolvable } => {
-                try_func(|s| Self::filter_solvable(s, unsolvable), state)
+                try_fn(|s| Self::filter_solvable(s, unsolvable), state)
             }
-            Command::Format { alg, long, spaced } => {
-                try_func(|a| Self::format(a, long, spaced), alg)
-            }
+            Command::Format { alg, long, spaced } => try_fn(|a| Self::format(a, long, spaced), alg),
             Command::FormatState { state, format } => {
-                try_func(|s| Self::format_state(s, format), state)
+                try_fn(|s| Self::format_state(s, format), state)
             }
-            Command::FromSolution { alg, size } => try_func(|a| Self::from_solution(a, size), alg),
+            Command::FromSolution { alg, size } => {
+                try_fallible_fn(|a| Self::from_solution(a, size), alg)
+            }
             Command::Generate {
                 number,
                 size,
@@ -405,22 +405,22 @@ impl Runner {
 
                 Ok(())
             }
-            Command::Invert { alg } => try_func(Self::invert, alg),
-            Command::Length { alg, metric } => try_func(|a| Self::length(a, metric), alg),
-            Command::Md { state } => try_func(|s| Self::md(s), state),
+            Command::Invert { alg } => try_fn(Self::invert, alg),
+            Command::Length { alg, metric } => try_fn(|a| Self::length(a, metric), alg),
+            Command::Md { state } => try_fn(|s| Self::md(s), state),
             Command::OptDiff { alg, size, metric } => {
-                try_func(|a| self.opt_diff(a, metric, size), alg)
+                try_fallible_fn(|a| self.opt_diff(a, metric, size), alg)
             }
             Command::Optimize {
                 alg,
                 metric,
                 length,
-            } => try_func(|a| self.optimize(a, metric, length), alg),
+            } => try_fallible_fn(|a| self.optimize(a, metric, length), alg),
             Command::PieceAt { state, position } => {
-                try_func(|s| Self::piece_at(s, position), state)
+                try_fallible_fn(|s| Self::piece_at(s, position), state)
             }
             Command::PiecePosition { state, piece } => {
-                try_func(|s| Self::piece_position(s, piece), state)
+                try_fallible_fn(|s| Self::piece_position(s, piece), state)
             }
             Command::Render {
                 state,
@@ -433,7 +433,7 @@ impl Runner {
                 border_thickness,
                 font_size,
                 output,
-            } => try_func_once(
+            } => try_fallible_fn_once(
                 |s| {
                     Self::render(
                         s,
@@ -450,14 +450,14 @@ impl Runner {
                 },
                 state,
             ),
-            Command::Simplify { alg, verbose } => try_func(|a| Self::simplify(a, verbose), alg),
+            Command::Simplify { alg, verbose } => try_fn(|a| Self::simplify(a, verbose), alg),
             Command::Slice {
                 alg,
                 start,
                 end,
                 metric,
-            } => try_func(|a| Self::slice(a, start, end, metric), alg),
-            Command::Solvable { state } => try_func(|s| Self::solvable(s), state),
+            } => try_fallible_fn(|a| Self::slice(a, start, end, metric), alg),
+            Command::Solvable { state } => try_fn(|s| Self::solvable(s), state),
             Command::Solve {
                 state,
                 metric,
@@ -468,7 +468,7 @@ impl Runner {
                 depth_beyond_optimal,
                 show_progress,
                 verbose,
-            } => try_func(
+            } => try_fallible_fn(
                 |s| {
                     let config = SolverConfig {
                         min: min_depth,
@@ -499,7 +499,7 @@ impl Runner {
                 Self::solved_state(size);
                 Ok(())
             }
-            Command::Transpose { alg } => try_func(|a| Self::transpose(a), alg),
+            Command::Transpose { alg } => try_fn(|a| Self::transpose(a), alg),
         }
     }
 }
