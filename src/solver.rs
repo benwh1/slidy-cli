@@ -201,7 +201,7 @@ impl Solver {
             {
                 move || {
                     let size = Size::new(4, 4).unwrap();
-                    let pdb_file_path = pdb_file_path(size, LabelType::RowGrids, Metric::Stm);
+                    let pdb_file_path = pdb_file_path(size, LabelType::RowGrids, Metric::Mtm);
 
                     if let Ok(file) = File::open(&pdb_file_path) {
                         let reader = BufReader::new(file);
