@@ -113,6 +113,9 @@ pub enum Command {
         #[clap(short, long, default_value_t = Size::new(4, 4).unwrap(), value_parser = Size::from_str)]
         size: Size,
 
+        #[clap(long)]
+        seed: Option<u64>,
+
         #[clap(long, group = "scrambler", default_value_t = true)]
         random_state: bool,
 

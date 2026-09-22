@@ -1,5 +1,6 @@
 use std::{error::Error, ops::ControlFlow};
 
+use rand::{rngs::Xoshiro256PlusPlus, Rng, SeedableRng};
 use slidy::{
     algorithm::algorithm::Algorithm,
     puzzle::{
@@ -133,12 +134,12 @@ impl Runner {
         }
     }
 
-    fn generate(number: u64, size: Size, s: &impl Scrambler) {
+    fn generate(number: u64, size: Size, s: &impl Scrambler, rng: &mut impl Rng) {
         let mut p = Puzzle::new(size);
 
         for _ in 0..number {
             p.reset();
-            s.scramble(&mut p);
+            s.scramble_with_rng(&mut p, rng);
             println!("{p}");
         }
     }
@@ -383,6 +384,7 @@ impl Runner {
             Command::Generate {
                 number,
                 size,
+                seed,
                 random_moves,
                 num_moves,
                 allow_backtracking,
@@ -390,17 +392,30 @@ impl Runner {
                 ..
             } => {
                 if random_moves {
-                    Self::generate(
-                        number,
-                        size,
-                        &RandomMoves {
-                            moves: num_moves,
-                            allow_backtracking,
-                            allow_illegal_moves,
-                        },
-                    );
+                    let scrambler = RandomMoves {
+                        moves: num_moves,
+                        allow_backtracking,
+                        allow_illegal_moves,
+                    };
+                    match seed {
+                        Some(seed) => Self::generate(
+                            number,
+                            size,
+                            &scrambler,
+                            &mut Xoshiro256PlusPlus::seed_from_u64(seed),
+                        ),
+                        None => Self::generate(number, size, &scrambler, &mut rand::rng()),
+                    };
                 } else {
-                    Self::generate(number, size, &RandomState);
+                    match seed {
+                        Some(seed) => Self::generate(
+                            number,
+                            size,
+                            &RandomState,
+                            &mut Xoshiro256PlusPlus::seed_from_u64(seed),
+                        ),
+                        None => Self::generate(number, size, &RandomState, &mut rand::rng()),
+                    };
                 }
 
                 Ok(())

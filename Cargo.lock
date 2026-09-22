@@ -451,6 +451,7 @@ dependencies = [
  "directories",
  "libc",
  "palette",
+ "rand",
  "slidy",
  "svg",
  "zstd",
