@@ -263,11 +263,23 @@ pub enum Command {
         #[clap(long, default_value_t = u64::MAX)]
         max_depth: u64,
 
-        #[clap(short = 'n', long, default_value_t = 1)]
+        #[clap(
+            short = 'n',
+            long,
+            default_value_t = 1,
+            default_value_if("all_optimal", "true", "18446744073709551615")
+        )]
         num_solutions: u64,
 
-        #[clap(long, default_value_t = u64::MAX)]
+        #[clap(
+            long,
+            default_value_t = u64::MAX,
+            default_value_if("all_optimal", "true", "0")
+        )]
         depth_beyond_optimal: u64,
+
+        #[clap(long, conflicts_with_all = ["num_solutions", "depth_beyond_optimal"])]
+        all_optimal: bool,
 
         #[clap(long, default_value_t = false)]
         show_progress: bool,

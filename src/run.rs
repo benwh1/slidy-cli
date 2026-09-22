@@ -468,6 +468,7 @@ impl Runner {
                 depth_beyond_optimal,
                 show_progress,
                 verbose,
+                ..
             } => try_fallible_fn(
                 |s| {
                     let config = SolverConfig {
