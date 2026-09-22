@@ -161,7 +161,10 @@ impl Runner {
 
     fn opt_diff(&mut self, alg: &Algorithm, metric: Metric, size: Size) -> Result {
         let mut p = Puzzle::new(size);
-        p.apply_alg(&alg.inverse());
+
+        if !p.try_apply_alg(&alg.inverse()) {
+            Err("opt-diff: failed to apply inverse algorithm")?;
+        }
 
         let solution = self.state.solver.solve_with_context(
             &p,
