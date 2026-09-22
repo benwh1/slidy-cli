@@ -24,7 +24,7 @@ pub enum Command {
     ApplyToSolved {
         alg: Option<Algorithm>,
 
-        #[clap(short, long)]
+        #[clap(short, long, default_value_t = Size::new(4, 4).unwrap())]
         size: Size,
     },
 
@@ -57,7 +57,7 @@ pub enum Command {
     FilterOptimal {
         alg: Option<Algorithm>,
 
-        #[clap(short, long)]
+        #[clap(short, long, default_value_t = Size::new(4, 4).unwrap())]
         size: Size,
 
         #[clap(short, long, default_value = "stm")]
@@ -99,7 +99,7 @@ pub enum Command {
     FromSolution {
         alg: Option<Algorithm>,
 
-        #[clap(short, long)]
+        #[clap(short, long, default_value_t = Size::new(4, 4).unwrap())]
         size: Size,
     },
 
@@ -153,7 +153,7 @@ pub enum Command {
     OptDiff {
         alg: Option<Algorithm>,
 
-        #[clap(short, long)]
+        #[clap(short, long, default_value_t = Size::new(4, 4).unwrap())]
         size: Size,
 
         #[clap(short, long, default_value = "stm")]
