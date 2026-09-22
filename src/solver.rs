@@ -428,7 +428,6 @@ impl Solver {
         register_projection_solver!(4, 3, Diagonals);
         register_projection_solver!(4, 4, Diagonals, DiagonalsPruneTarget4x4);
 
-        register_projection_solver!(4, 2, Diagonals);
         register_projection_solver!(5, 2, Diagonals);
         register_projection_solver!(6, 2, Diagonals);
         register_projection_solver!(7, 2, Diagonals);
