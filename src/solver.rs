@@ -107,21 +107,24 @@ impl Solver {
                     type PdbTy = $pdb_ty;
                     type SolverTy = $solver_ty;
 
-                    let pdb = if let Ok(file) = File::open(&pdb_file_path) {
-                        let reader = BufReader::new(file);
-                        let bytes = zstd::decode_all(reader).unwrap().into_boxed_slice();
+                    let pdb = File::open(&pdb_file_path)
+                        .ok()
+                        .and_then(|file| {
+                            let reader = BufReader::new(file);
+                            let bytes = zstd::decode_all(reader).ok()?.into_boxed_slice();
 
-                        // SAFETY: this computes a checksum to verify correctness, which is
-                        // good enough here.
-                        unsafe { PdbTy::try_from_bytes(bytes) }.unwrap()
-                    } else {
-                        let pdb = PdbTy::default();
+                            // SAFETY: this computes a checksum to verify correctness, which is
+                            // good enough here.
+                            unsafe { PdbTy::try_from_bytes(bytes) }
+                        })
+                        .unwrap_or_else(|| {
+                            let pdb = PdbTy::default();
 
-                        let bytes = pdb.as_ref();
-                        write_compressed_pdb(&pdb_file_path, bytes);
+                            let bytes = pdb.as_ref();
+                            write_compressed_pdb(&pdb_file_path, bytes);
 
-                        pdb
-                    };
+                            pdb
+                        });
 
                     SolverTy::with_pdb(pdb)
                 }
@@ -204,24 +207,24 @@ impl Solver {
                 let size = Size::new(4, 4).unwrap();
                 let pdb_file_path = pdb_file_path(size, LabelType::RowGrids, Metric::Mtm);
 
-                File::open(&pdb_file_path).map_or_else(
-                    |_| {
+                File::open(&pdb_file_path)
+                    .ok()
+                    .and_then(|file| {
+                        let reader = BufReader::new(file);
+                        let bytes = zstd::decode_all(reader).ok()?.into_boxed_slice();
+
+                        // SAFETY: this computes a checksum to verify correctness, which is
+                        // good enough here.
+                        unsafe { Solver4x4Mtm::try_with_pdb_bytes(bytes) }
+                    })
+                    .unwrap_or_else(|| {
                         let solver = Solver4x4Mtm::default();
 
                         let bytes = solver.pdb().as_ref();
                         write_compressed_pdb(&pdb_file_path, bytes);
 
                         solver
-                    },
-                    |file| {
-                        let reader = BufReader::new(file);
-                        let bytes = zstd::decode_all(reader).unwrap().into_boxed_slice();
-
-                        // SAFETY: this computes a checksum to verify correctness, which is
-                        // good enough here.
-                        unsafe { Solver4x4Mtm::try_with_pdb_bytes(bytes) }.unwrap()
-                    },
-                )
+                    })
             },
         );
 
@@ -237,39 +240,50 @@ impl Solver {
                 let size = Size::new(w, h).unwrap();
 
                 let solver = move || {
-                    let builder = ProjectionSolver::builder()
-                        .size(size)
-                        .target($target)
-                        .prune_target($prune_target)
-                        .metric($metric);
-
                     let pdb_file_path = pdb_file_path(size, target, metric);
 
-                    if let Ok(file) = File::open(&pdb_file_path) {
-                        let reader = BufReader::new(file);
-                        let bytes = zstd::decode_all(reader).unwrap().into_boxed_slice();
+                    File::open(&pdb_file_path)
+                        .ok()
+                        .and_then(|file| {
+                            let reader = BufReader::new(file);
+                            let bytes = zstd::decode_all(reader).ok()?.into_boxed_slice();
 
-                        // SAFETY: It's possible for the user to manually swap out a pdb file with
-                        // a bad file, but realistically they probably won't. We store them with a
-                        // checksum to guard against file corruption.
-                        let pdb = unsafe { ProjectionPdb::from_bytes_unchecked(bytes) };
+                            // SAFETY: It's possible for the user to manually swap out a pdb file with
+                            // a bad file, but realistically they probably won't. We store them with a
+                            // checksum to guard against file corruption.
+                            let pdb = unsafe { ProjectionPdb::from_bytes_unchecked(bytes) };
 
-                        builder.pdb(pdb).build().unwrap()
-                    } else {
-                        let solver = builder
-                            .pdb_config(PdbConfig {
-                                end_of_iter_callback: Some(Box::new(|s| {
-                                    println!("depth {} new {} total {}", s.depth, s.new, s.total);
-                                })),
-                            })
-                            .build()
-                            .unwrap();
+                            ProjectionSolver::builder()
+                                .size(size)
+                                .target($target)
+                                .prune_target($prune_target)
+                                .metric($metric)
+                                .pdb(pdb)
+                                .build()
+                                .ok()
+                        })
+                        .unwrap_or_else(|| {
+                            let solver = ProjectionSolver::builder()
+                                .size(size)
+                                .target($target)
+                                .prune_target($prune_target)
+                                .metric($metric)
+                                .pdb_config(PdbConfig {
+                                    end_of_iter_callback: Some(Box::new(|s| {
+                                        println!(
+                                            "depth {} new {} total {}",
+                                            s.depth, s.new, s.total,
+                                        );
+                                    })),
+                                })
+                                .build()
+                                .unwrap();
 
-                        let bytes = solver.pdb().as_ref();
-                        write_compressed_pdb(&pdb_file_path, bytes);
+                            let bytes = solver.pdb().as_ref();
+                            write_compressed_pdb(&pdb_file_path, bytes);
 
-                        solver
-                    }
+                            solver
+                        })
                 };
 
                 this.register(size, target, metric, solver);
