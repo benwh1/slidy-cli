@@ -179,6 +179,7 @@ impl Solver {
 
         // Small puzzles
 
+        register_small_solver!(2, 2);
         register_small_solver!(3, 2);
         register_small_solver!(3, 3);
         register_small_solver!(4, 2);
