@@ -465,7 +465,6 @@ dependencies = [
  "palette",
  "slidy",
  "svg",
- "thiserror",
  "zstd",
 ]
 

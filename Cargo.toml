@@ -16,7 +16,6 @@ libc = "^0.2"
 palette = "^0.7"
 slidy = { version = "^0.7", features = ["palette"] }
 svg = "^0.18"
-thiserror = "^2"
 zstd = "0.14.0"
 
 [[bin]]
