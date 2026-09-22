@@ -28,7 +28,7 @@ pub enum Command {
         size: Size,
     },
 
-    #[clap(about = "Appends a prefix or suffix to an algorithm")]
+    #[clap(about = "Prepends a prefix and appends a suffix to an algorithm")]
     Concat {
         alg: Option<Algorithm>,
 
