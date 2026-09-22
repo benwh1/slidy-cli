@@ -478,7 +478,7 @@ impl Runner {
                         end_of_iter_callback: show_progress.then_some(Box::new(
                             |stats| -> ControlFlow<()> {
                                 let depth = stats.depth;
-                                println!("Finished searching depth {depth}");
+                                eprintln!("Finished searching depth {depth}");
                                 ControlFlow::Continue(())
                             },
                         )),
