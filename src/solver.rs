@@ -26,6 +26,7 @@ use slidy::{
         heuristic::{manhattan::ManhattanDistance, mtm::MtmHeuristic},
         projection::{pdb::Pdb as ProjectionPdb, solver::Solver as ProjectionSolver},
         solver::{Solver as SolverT, SolverError},
+        statistics::PdbIterationStats,
         Solver4x4Mtm, Solver4x4Stm,
     },
 };
@@ -78,6 +79,14 @@ fn write_compressed_pdb(pdb_file_path: &Path, bytes: &[u8]) {
     encoder.finish().unwrap();
 }
 
+fn pdb_config() -> PdbConfig {
+    PdbConfig {
+        end_of_iter_callback: Some(Box::new(|s: PdbIterationStats| {
+            println!("depth {} new {} total {}", s.depth, s.new, s.total);
+        })),
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct SolverKey {
     size: Size,
@@ -118,7 +127,7 @@ impl Solver {
                             unsafe { PdbTy::try_from_bytes(bytes) }
                         })
                         .unwrap_or_else(|| {
-                            let pdb = PdbTy::default();
+                            let pdb = PdbTy::new(&pdb_config());
 
                             let bytes = pdb.as_ref();
                             write_compressed_pdb(&pdb_file_path, bytes);
@@ -218,7 +227,7 @@ impl Solver {
                         unsafe { Solver4x4Mtm::try_with_pdb_bytes(bytes) }
                     })
                     .unwrap_or_else(|| {
-                        let solver = Solver4x4Mtm::default();
+                        let solver = Solver4x4Mtm::new(&pdb_config());
 
                         let bytes = solver.pdb().as_ref();
                         write_compressed_pdb(&pdb_file_path, bytes);
@@ -268,14 +277,7 @@ impl Solver {
                                 .target($target)
                                 .prune_target($prune_target)
                                 .metric($metric)
-                                .pdb_config(PdbConfig {
-                                    end_of_iter_callback: Some(Box::new(|s| {
-                                        println!(
-                                            "depth {} new {} total {}",
-                                            s.depth, s.new, s.total,
-                                        );
-                                    })),
-                                })
+                                .pdb_config(pdb_config())
                                 .build()
                                 .unwrap();
 
