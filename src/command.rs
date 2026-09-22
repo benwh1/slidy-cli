@@ -132,7 +132,7 @@ pub enum Command {
     #[clap(about = "Prints the inverse of an algorithm")]
     Invert { alg: Option<Algorithm> },
 
-    #[clap(about = "Prints the length of an algorithm in single tile moves")]
+    #[clap(about = "Prints the length of an algorithm")]
     Length {
         alg: Option<Algorithm>,
 
