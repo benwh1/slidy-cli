@@ -1,6 +1,6 @@
 use std::{error::Error, ops::ControlFlow};
 
-use rand::{rngs::Xoshiro256PlusPlus, Rng, SeedableRng};
+use rand::{rngs::Xoshiro256PlusPlus, Rng, SeedableRng as _};
 use slidy::{
     algorithm::algorithm::Algorithm,
     puzzle::{
@@ -405,7 +405,7 @@ impl Runner {
                             &mut Xoshiro256PlusPlus::seed_from_u64(seed),
                         ),
                         None => Self::generate(number, size, &scrambler, &mut rand::rng()),
-                    };
+                    }
                 } else {
                     match seed {
                         Some(seed) => Self::generate(
@@ -415,7 +415,7 @@ impl Runner {
                             &mut Xoshiro256PlusPlus::seed_from_u64(seed),
                         ),
                         None => Self::generate(number, size, &RandomState, &mut rand::rng()),
-                    };
+                    }
                 }
 
                 Ok(())
