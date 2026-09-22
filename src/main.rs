@@ -4,7 +4,6 @@ mod command;
 mod enums;
 mod run;
 mod solver;
-mod state;
 mod util;
 
 use std::error::Error;

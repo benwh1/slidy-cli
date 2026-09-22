@@ -23,13 +23,12 @@ use crate::{
     args::Args,
     command::Command,
     enums::{ColoringType, LabelType, Metric, StateFormatter},
-    solver::SolverContext,
-    state::State,
+    solver::{Solver, SolverContext},
     util::{loop_fn, try_fallible_fn, try_fallible_fn_once, try_fn},
 };
 
 pub struct Runner {
-    state: State,
+    solver: Solver,
 }
 
 type Result = core::result::Result<(), Box<dyn Error>>;
@@ -37,7 +36,7 @@ type Result = core::result::Result<(), Box<dyn Error>>;
 impl Runner {
     pub fn new() -> Self {
         Self {
-            state: State::new(),
+            solver: Solver::new(),
         }
     }
 
@@ -82,7 +81,7 @@ impl Runner {
             Err("filter-optimal: failed to apply inverse algorithm")?;
         }
 
-        let solution = self.state.solver.solve_with_context(
+        let solution = self.solver.solve_with_context(
             &p,
             &SolverContext {
                 metric,
@@ -166,7 +165,7 @@ impl Runner {
             Err("opt-diff: failed to apply inverse algorithm")?;
         }
 
-        let solution = self.state.solver.solve_with_context(
+        let solution = self.solver.solve_with_context(
             &p,
             &SolverContext {
                 metric,
@@ -195,7 +194,7 @@ impl Runner {
             let mut puzzle = Puzzle::new(size);
             puzzle.apply_alg(&slice);
 
-            let solution = self.state.solver.solve_with_context(
+            let solution = self.solver.solve_with_context(
                 &puzzle,
                 &SolverContext {
                     metric,
@@ -320,7 +319,6 @@ impl Runner {
         let context = SolverContext { metric, label };
 
         Ok(self
-            .state
             .solver
             .solve_with_config_and_context(puzzle, config, &context)?)
     }
