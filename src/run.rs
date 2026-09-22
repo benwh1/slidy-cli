@@ -328,8 +328,7 @@ impl Runner {
     }
 
     fn transpose(alg: &Algorithm) {
-        let transposed = alg.transpose();
-        println!("{transposed}");
+        println!("{}", alg.transpose());
     }
 
     pub fn run(&mut self, args: Args) -> Result {
