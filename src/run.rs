@@ -1,5 +1,7 @@
 use std::{error::Error, ops::ControlFlow};
 
+use clap::CommandFactory as _;
+use clap_complete::aot::{self, Shell};
 use rand::{rngs::Xoshiro256PlusPlus, Rng, SeedableRng as _};
 use slidy::{
     algorithm::algorithm::Algorithm,
@@ -53,6 +55,11 @@ impl Runner {
     fn apply_to_solved(alg: &Algorithm, size: Size) -> Result {
         let mut state = Puzzle::new(size);
         Self::apply(&mut state, alg)
+    }
+
+    fn completions(shell: Shell) {
+        let mut cmd = Args::command();
+        aot::generate(shell, &mut cmd, "slidy", &mut std::io::stdout());
     }
 
     fn concat(alg: &Algorithm, prefix: &Algorithm, suffix: &Algorithm) {
@@ -342,6 +349,10 @@ impl Runner {
             },
             Command::ApplyToSolved { alg, size } => {
                 try_fallible_fn(|a| Self::apply_to_solved(a, size), alg)
+            }
+            Command::Completions { shell } => {
+                Self::completions(shell);
+                Ok(())
             }
             Command::Concat {
                 alg,

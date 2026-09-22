@@ -1,6 +1,7 @@
 use std::str::FromStr as _;
 
 use clap::{ArgGroup, Subcommand};
+use clap_complete::aot::Shell;
 use slidy::{
     algorithm::algorithm::Algorithm,
     puzzle::{puzzle::Puzzle, size::Size},
@@ -27,6 +28,9 @@ pub enum Command {
         #[clap(short, long, default_value_t = Size::new(4, 4).unwrap())]
         size: Size,
     },
+
+    #[clap(about = "Generates shell completion scripts")]
+    Completions { shell: Shell },
 
     #[clap(about = "Prepends a prefix and appends a suffix to an algorithm")]
     Concat {
