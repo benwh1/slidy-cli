@@ -82,7 +82,7 @@ fn write_compressed_pdb(pdb_file_path: &Path, bytes: &[u8]) {
 fn pdb_config() -> PdbConfig {
     PdbConfig {
         end_of_iter_callback: Some(Box::new(|s: PdbIterationStats| {
-            println!("depth {} new {} total {}", s.depth, s.new, s.total);
+            eprintln!("depth {} new {} total {}", s.depth, s.new, s.total);
         })),
     }
 }
