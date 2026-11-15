@@ -30,6 +30,18 @@ use crate::{
     util::{loop_fn, try_fallible_fn, try_fallible_fn_once, try_fn},
 };
 
+/// Length, in `metric`, of the longest common prefix of moves of `a` and `b`.
+fn unchanged_prefix_len(a: &Algorithm, b: &Algorithm, metric: Metric) -> u64 {
+    let common = a
+        .moves()
+        .iter()
+        .zip(b.moves())
+        .take_while(|(x, y)| x == y)
+        .count();
+
+    Algorithm::with_moves(b.moves()[..common].to_vec()).len_metric(metric)
+}
+
 pub struct Runner {
     /// Created on first use, so that commands which don't solve anything never touch the PDB
     /// cache.
@@ -194,6 +206,15 @@ impl Runner {
     }
 
     fn optimize(&mut self, alg: &mut Algorithm, metric: Metric, length: u64) -> Result {
+        self.optimize_alg(alg, metric, length)?;
+        println!("{alg}");
+
+        Ok(())
+    }
+
+    /// Replaces every window of `length` moves in `alg` that has a shorter equivalent with an
+    /// optimal one, until no window can be improved.
+    fn optimize_alg(&mut self, alg: &mut Algorithm, metric: Metric, length: u64) -> Result {
         alg.simplify();
 
         let mut idx = 0;
@@ -217,19 +238,24 @@ impl Runner {
             if solution.len_metric(metric) == length {
                 idx += 1;
             } else {
-                let mut start = Algorithm::from(alg.slice_metric(metric, 0..idx)?);
-                let middle = solution.inverse();
-                let end = Algorithm::from(
+                let mut new_alg = Algorithm::from(alg.slice_metric(metric, 0..idx)?);
+                new_alg += solution.inverse();
+                new_alg += Algorithm::from(
                     alg.slice_metric(metric, idx + length..alg.len_metric(metric))?,
                 );
-                start += middle;
-                start += end;
 
-                *alg = start;
+                // The new middle can merge or cancel with the moves around it, which can in turn
+                // make earlier windows improvable.
+                new_alg.simplify();
+
+                // Windows that lie entirely within the unchanged prefix have already been checked.
+                // Every other window from the first changed move onwards needs to be (re)checked.
+                let unchanged = unchanged_prefix_len(alg, &new_alg, metric);
+                idx = idx.min((unchanged + 1).saturating_sub(length));
+
+                *alg = new_alg;
             }
         }
-
-        println!("{alg}");
 
         Ok(())
     }
@@ -529,5 +555,85 @@ impl Runner {
             Command::SolvedState { size } => try_fn(|s| Self::solved_state(*s), size),
             Command::Transpose { alg } => try_fn(|a| Self::transpose(a), alg),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr as _;
+
+    use super::*;
+
+    fn runner() -> Runner {
+        Runner {
+            solver: Some(Solver::with_pdb_dir(None)),
+        }
+    }
+
+    /// Applies `alg` to a large puzzle with the gap in the middle, so that any short algorithm can
+    /// be applied regardless of how the gap moves.
+    fn effect(alg: &Algorithm) -> Puzzle {
+        let mut puzzle = Puzzle::new(Size::new(15, 15).unwrap());
+        assert!(puzzle.try_apply_alg(&Algorithm::from_str("R7D7").unwrap()));
+        assert!(puzzle.try_apply_alg(alg));
+        puzzle
+    }
+
+    fn optimize(alg: &str, metric: Metric, length: u64) -> Algorithm {
+        let original = Algorithm::from_str(alg).unwrap();
+        let mut optimized = original.clone();
+        runner()
+            .optimize_alg(&mut optimized, metric, length)
+            .unwrap();
+
+        assert_eq!(
+            effect(&optimized),
+            effect(&original),
+            "{alg} -> {optimized}"
+        );
+        assert!(optimized.len_metric(metric) <= original.len_metric(metric));
+
+        optimized
+    }
+
+    #[test]
+    fn optimize_simplifies_after_splicing() {
+        // The optimal replacement for the last 8 moves starts with R, which cancels the leading
+        // L.
+        assert_eq!(optimize("LDRULDRUL", Metric::Stm, 8).to_string(), "DLU");
+        assert_eq!(optimize("RDRULDRUL", Metric::Stm, 8).to_string(), "R2DLU");
+    }
+
+    #[test]
+    fn optimize_rechecks_windows_before_the_splice() {
+        // Splicing in an optimal replacement creates new improvable windows that start before the
+        // splice point. Without rechecking those, this only gets down to 10 moves.
+        let alg = optimize("URDLURDLLDRULDRULD", Metric::Stm, 8);
+        assert_eq!(alg.to_string(), "RULD2L");
+
+        let alg = optimize("DLURDLURDLRDLURDLURDLDRULDRULD", Metric::Stm, 8);
+        assert_eq!(alg.len_stm(), 6, "{alg}");
+    }
+
+    #[test]
+    fn optimize_output_is_a_fixed_point() {
+        for alg in ["LDRULDRUL", "RDRULDRUL", "DRULDRULDRUL", "DRDRULDRULDRUL"] {
+            for length in [2, 4, 6, 8] {
+                let once = optimize(alg, Metric::Stm, length);
+                let mut twice = once.clone();
+                runner()
+                    .optimize_alg(&mut twice, Metric::Stm, length)
+                    .unwrap();
+                assert_eq!(twice, once, "{alg} with length {length}");
+            }
+        }
+    }
+
+    #[test]
+    fn optimize_trivial_cases() {
+        assert_eq!(optimize("", Metric::Stm, 4).to_string(), "");
+        assert_eq!(optimize("RU", Metric::Stm, 0).to_string(), "RU");
+        assert_eq!(optimize("RU", Metric::Stm, 5).to_string(), "RU");
+        assert_eq!(optimize("RLU", Metric::Stm, 5).to_string(), "U");
     }
 }
