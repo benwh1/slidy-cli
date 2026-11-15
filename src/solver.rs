@@ -33,6 +33,7 @@ use slidy::{
 use zstd::Encoder;
 
 use crate::{
+    cache_versions::SOLVER_VERSION,
     enums::{LabelType, Metric},
     solver::projections::{DiagonalsPruneTarget4x4, SplitFringePruneTarget4x4},
 };
@@ -43,12 +44,13 @@ type BoxSolverInit = Box<dyn FnOnce() -> BoxSolver>;
 type Remap = Box<dyn Fn(SolverKey) -> Option<SolverKey>>;
 
 /// The directory PDBs are cached in, or `None` if the platform has no cache directory (e.g. no
-/// home directory could be determined).
+/// home directory could be determined). The directory is versioned by [`SOLVER_VERSION`].
 fn default_pdb_dir() -> Option<PathBuf> {
     let mut dir = ProjectDirs::from("", "", "slidy-cli")?
         .cache_dir()
         .to_path_buf();
     dir.push("solver");
+    dir.push(format!("v{SOLVER_VERSION}"));
     dir.push("pdb");
 
     Some(dir)
@@ -71,15 +73,8 @@ fn pdb_file_path(
     Some(pdb_dir?.join(file_name))
 }
 
-/// Version of `slidy` that projection PDBs are built with. It is part of their file names, so
-/// upgrading `slidy` never reuses a projection PDB built with a different encoding: those PDBs are
-/// loaded without a hash check (see [`projection_pdb_len`]).
-///
-/// The `projection_pdb_version_matches_slidy` test keeps this in sync with `Cargo.lock`.
-const PROJECTION_PDB_SLIDY_VERSION: &str = "0.7.0";
-
-/// Like [`pdb_file_path`], but for projection PDBs, whose contents also depend on the prune target
-/// and the `slidy` version. `prune_target` is `None` when it is the same as `label`.
+/// Like [`pdb_file_path`], but for projection PDBs, whose contents also depend on the prune target.
+/// `prune_target` is `None` when it is the same as `label`.
 fn projection_pdb_file_path(
     pdb_dir: Option<&Path>,
     size: Size,
@@ -88,13 +83,12 @@ fn projection_pdb_file_path(
     metric: Metric,
 ) -> Option<PathBuf> {
     let file_name = format!(
-        "{w}x{h}-{label}{prune}-{metric}-slidy-{version}.pdb.zst",
+        "{w}x{h}-{label}{prune}-{metric}.pdb.zst",
         w = size.width(),
         h = size.height(),
         label = label.pdb_file_name(),
         prune = prune_target.map_or_else(String::new, |p| format!("-prune-{p}")),
         metric = metric.pdb_file_name(),
-        version = PROJECTION_PDB_SLIDY_VERSION,
     );
 
     Some(pdb_dir?.join(file_name))
@@ -354,10 +348,10 @@ impl Solver {
 
                             // SAFETY: The length check above means the solver can't index the PDB
                             // out of bounds (see `projection_pdb_len`). The file name includes the
-                            // prune target and the `slidy` version, so the contents were built with
-                            // the same encoding, and the zstd checksum guards against corruption.
-                            // Only a file deliberately replaced with different data of the same
-                            // length could give wrong (but memory-safe) heuristic values.
+                            // prune target and the cache directory is versioned by `SOLVER_VERSION`,
+                            // so the contents were built with the same encoding, and the zstd
+                            // checksum guards against corruption. A stale or tampered file of the
+                            // same length could only give wrong (but memory-safe) heuristic values.
                             let pdb = unsafe { ProjectionPdb::from_bytes_unchecked(bytes) };
 
                             ProjectionSolver::builder()
@@ -786,27 +780,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn projection_pdb_version_matches_slidy() {
-        let lock = include_str!("../Cargo.lock");
-        let slidy_version = lock
-            .split("[[package]]")
-            .find(|package| package.contains("\nname = \"slidy\"\n"))
-            .and_then(|package| {
-                package
-                    .lines()
-                    .find_map(|line| line.strip_prefix("version = \""))
-                    .and_then(|v| v.strip_suffix('"'))
-            })
-            .expect("slidy is in Cargo.lock");
-
-        assert_eq!(
-            slidy_version, PROJECTION_PDB_SLIDY_VERSION,
-            "slidy was upgraded: update PROJECTION_PDB_SLIDY_VERSION so that projection PDBs built \
-            with the old version aren't reused"
-        );
-    }
-
-    #[test]
     fn projection_pdb_len_matches_built_pdb() {
         macro_rules! check {
             ($w:literal, $h:literal, $target:expr, $metric:expr) => {{
@@ -865,7 +838,7 @@ mod tests {
 
         assert_eq!(
             projection_pdb_file_path(Some(dir), size, LabelType::Rows, None, Metric::Mtm),
-            Some(dir.join("4x4-rows-mtm-slidy-0.7.0.pdb.zst"))
+            Some(dir.join("4x4-rows-mtm.pdb.zst"))
         );
         assert_eq!(
             projection_pdb_file_path(
@@ -875,11 +848,7 @@ mod tests {
                 Some("SplitFringePruneTarget4x4"),
                 Metric::Stm
             ),
-            Some(
-                dir.join(
-                    "4x4-split-fringe-prune-SplitFringePruneTarget4x4-stm-slidy-0.7.0.pdb.zst"
-                )
-            )
+            Some(dir.join("4x4-split-fringe-prune-SplitFringePruneTarget4x4-stm.pdb.zst"))
         );
         assert_eq!(
             projection_pdb_file_path(None, size, LabelType::Rows, None, Metric::Stm),
