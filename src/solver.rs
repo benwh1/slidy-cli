@@ -56,42 +56,52 @@ fn default_pdb_dir() -> Option<PathBuf> {
     Some(dir)
 }
 
-fn pdb_file_path(
-    pdb_dir: Option<&Path>,
-    size: Size,
-    label: LabelType,
-    metric: Metric,
-) -> Option<PathBuf> {
-    let file_name = format!(
-        "{w}x{h}-{label}-{metric}.pdb.zst",
-        w = size.width(),
-        h = size.height(),
-        label = label.pdb_file_name(),
-        metric = metric.pdb_file_name(),
-    );
+/// The move set PDBs are built for. Only the standard moves exist for now, but this is a directory
+/// level of its own so that other move sets can be added without renaming existing files.
+const MOVE_SET: &str = "standard";
 
-    Some(pdb_dir?.join(file_name))
+/// The kind of solver a PDB belongs to. Each kind has its own PDB format, and its own directory in
+/// the cache.
+#[derive(Clone, Copy, Debug)]
+enum PdbKind<'a> {
+    /// `slidy::solver::small`, for puzzles with few enough states to store every one.
+    Small,
+    /// `slidy::solver::size4x4`, for the 4x4 MTM solver.
+    Size4x4,
+    /// `slidy::solver::projection`. Its PDB depends on the prune target, not the target, so it is
+    /// keyed by the prune target's name.
+    Projection { prune_target: &'a str },
 }
 
-/// Like [`pdb_file_path`], but for projection PDBs, whose contents also depend on the prune target.
-/// `prune_target` is `None` when it is the same as `label`.
-fn projection_pdb_file_path(
+/// The path of a cached PDB:
+///
+/// ```text
+/// <pdb_dir>/<kind>[/<prune target>]/<move set>/<metric>/<width>x<height>.pdb.zst
+/// ```
+///
+/// For example `projection/fringe/standard/stm/4x4.pdb.zst`.
+fn pdb_file_path(
     pdb_dir: Option<&Path>,
-    size: Size,
-    label: LabelType,
-    prune_target: Option<&str>,
+    kind: PdbKind<'_>,
     metric: Metric,
+    size: Size,
 ) -> Option<PathBuf> {
-    let file_name = format!(
-        "{w}x{h}-{label}{prune}-{metric}.pdb.zst",
-        w = size.width(),
-        h = size.height(),
-        label = label.pdb_file_name(),
-        prune = prune_target.map_or_else(String::new, |p| format!("-prune-{p}")),
-        metric = metric.pdb_file_name(),
-    );
+    let mut path = pdb_dir?.to_path_buf();
 
-    Some(pdb_dir?.join(file_name))
+    match kind {
+        PdbKind::Small => path.push("small"),
+        PdbKind::Size4x4 => path.push("4x4"),
+        PdbKind::Projection { prune_target } => {
+            path.push("projection");
+            path.push(prune_target);
+        }
+    }
+
+    path.push(MOVE_SET);
+    path.push(metric.pdb_file_name());
+    path.push(format!("{}x{}.pdb.zst", size.width(), size.height()));
+
+    Some(path)
 }
 
 /// The number of entries in the projection PDB that `slidy` builds for `prune_target` on a puzzle
@@ -250,8 +260,8 @@ impl Solver {
 
                 let size = Size::new(max, min).unwrap();
 
-                let file_name_stm = pdb_file_path(pdb_dir, size, LabelType::RowGrids, Metric::Stm);
-                let file_name_mtm = pdb_file_path(pdb_dir, size, LabelType::RowGrids, Metric::Mtm);
+                let file_name_stm = pdb_file_path(pdb_dir, PdbKind::Small, Metric::Stm, size);
+                let file_name_mtm = pdb_file_path(pdb_dir, PdbKind::Small, Metric::Mtm, size);
 
                 this.register(
                     size,
@@ -305,7 +315,7 @@ impl Solver {
         );
 
         let size = Size::new(4, 4).unwrap();
-        let pdb_file_path_4x4_mtm = pdb_file_path(pdb_dir, size, LabelType::RowGrids, Metric::Mtm);
+        let pdb_file_path_4x4_mtm = pdb_file_path(pdb_dir, PdbKind::Size4x4, Metric::Mtm, size);
         this.register(size, LabelType::RowGrids, Metric::Mtm, move || {
             read_compressed_pdb(pdb_file_path_4x4_mtm.as_deref())
                 .and_then(|bytes| {
@@ -326,7 +336,7 @@ impl Solver {
         // Labels
 
         macro_rules! register_projection_solver {
-            ($w:literal, $h:literal, $target:tt, $prune_target:tt, $metric:tt) => {{
+            ($w:literal, $h:literal, $target:tt, $prune_target:tt, $prune_name:expr, $metric:tt) => {{
                 let w = $w;
                 let h = $h;
                 let target = LabelType::$target;
@@ -334,10 +344,10 @@ impl Solver {
 
                 let size = Size::new(w, h).unwrap();
 
-                let prune_target_name = (stringify!($prune_target) != stringify!($target))
-                    .then_some(stringify!($prune_target));
-                let pdb_file_path =
-                    projection_pdb_file_path(pdb_dir, size, target, prune_target_name, metric);
+                let kind = PdbKind::Projection {
+                    prune_target: $prune_name,
+                };
+                let pdb_file_path = pdb_file_path(pdb_dir, kind, metric, size);
 
                 let solver = move || {
                     read_compressed_pdb(pdb_file_path.as_deref())
@@ -347,8 +357,8 @@ impl Solver {
                             }
 
                             // SAFETY: The length check above means the solver can't index the PDB
-                            // out of bounds (see `projection_pdb_len`). The file name includes the
-                            // prune target and the cache directory is versioned by `SOLVER_VERSION`,
+                            // out of bounds (see `projection_pdb_len`). The path includes the prune
+                            // target and the cache directory is versioned by `SOLVER_VERSION`,
                             // so the contents were built with the same encoding, and the zstd
                             // checksum guards against corruption. A stale or tampered file of the
                             // same length could only give wrong (but memory-safe) heuristic values.
@@ -382,12 +392,43 @@ impl Solver {
 
                 this.register(size, target, metric, solver);
             }};
+            // Custom prune target, which provides its own name for the cache path.
             ($w:literal, $h:literal, $target:tt, $prune_target:tt) => {
-                register_projection_solver!($w, $h, $target, $prune_target, Stm);
-                register_projection_solver!($w, $h, $target, $prune_target, Mtm);
+                register_projection_solver!(
+                    $w,
+                    $h,
+                    $target,
+                    $prune_target,
+                    $prune_target::PDB_NAME,
+                    Stm
+                );
+                register_projection_solver!(
+                    $w,
+                    $h,
+                    $target,
+                    $prune_target,
+                    $prune_target::PDB_NAME,
+                    Mtm
+                );
             };
+            // The target is also the prune target.
             ($w:literal, $h:literal, $target:tt) => {
-                register_projection_solver!($w, $h, $target, $target);
+                register_projection_solver!(
+                    $w,
+                    $h,
+                    $target,
+                    $target,
+                    LabelType::$target.pdb_file_name(),
+                    Stm
+                );
+                register_projection_solver!(
+                    $w,
+                    $h,
+                    $target,
+                    $target,
+                    LabelType::$target.pdb_file_name(),
+                    Mtm
+                );
             };
         }
 
@@ -832,26 +873,43 @@ mod tests {
     }
 
     #[test]
-    fn projection_pdb_file_names() {
+    fn pdb_file_paths() {
         let dir = Path::new("pdb");
-        let size = Size::new(4, 4).unwrap();
+        let path =
+            |kind, metric, w, h| pdb_file_path(Some(dir), kind, metric, Size::new(w, h).unwrap());
 
         assert_eq!(
-            projection_pdb_file_path(Some(dir), size, LabelType::Rows, None, Metric::Mtm),
-            Some(dir.join("4x4-rows-mtm.pdb.zst"))
+            path(PdbKind::Small, Metric::Stm, 4, 3),
+            Some(dir.join("small/standard/stm/4x3.pdb.zst"))
         );
         assert_eq!(
-            projection_pdb_file_path(
-                Some(dir),
-                size,
-                LabelType::SplitFringe,
-                Some("SplitFringePruneTarget4x4"),
-                Metric::Stm
+            path(PdbKind::Size4x4, Metric::Mtm, 4, 4),
+            Some(dir.join("4x4/standard/mtm/4x4.pdb.zst"))
+        );
+        assert_eq!(
+            path(
+                PdbKind::Projection {
+                    prune_target: LabelType::Fringe.pdb_file_name()
+                },
+                Metric::Stm,
+                2,
+                5
             ),
-            Some(dir.join("4x4-split-fringe-prune-SplitFringePruneTarget4x4-stm.pdb.zst"))
+            Some(dir.join("projection/fringe/standard/stm/2x5.pdb.zst"))
         );
         assert_eq!(
-            projection_pdb_file_path(None, size, LabelType::Rows, None, Metric::Stm),
+            path(
+                PdbKind::Projection {
+                    prune_target: SplitFringePruneTarget4x4::PDB_NAME
+                },
+                Metric::Mtm,
+                4,
+                4
+            ),
+            Some(dir.join("projection/split-fringe-4x4-prune/standard/mtm/4x4.pdb.zst"))
+        );
+        assert_eq!(
+            pdb_file_path(None, PdbKind::Small, Metric::Stm, Size::new(3, 3).unwrap()),
             None
         );
     }
