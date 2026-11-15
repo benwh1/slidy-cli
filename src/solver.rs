@@ -4,7 +4,7 @@ use std::{
     cell::LazyCell,
     collections::HashMap,
     fs::File,
-    io::{BufReader, BufWriter, Write as _},
+    io::{self, BufReader, BufWriter, Write as _},
     path::{Path, PathBuf},
 };
 
@@ -68,15 +68,26 @@ fn pdb_file_path(size: Size, label: LabelType, metric: Metric) -> PathBuf {
     file_path
 }
 
-fn write_compressed_pdb(pdb_file_path: &Path, bytes: &[u8]) {
-    let file = File::create(pdb_file_path).unwrap();
+fn write_compressed_pdb(pdb_file_path: &Path, bytes: &[u8]) -> io::Result<()> {
+    let file = File::create(pdb_file_path)?;
     let writer = BufWriter::new(file);
 
-    let mut encoder = Encoder::new(writer, 0).unwrap();
-    encoder.include_checksum(true).unwrap();
-    encoder.include_contentsize(true).unwrap();
-    encoder.write_all(bytes).unwrap();
-    encoder.finish().unwrap();
+    let mut encoder = Encoder::new(writer, 0)?;
+    encoder.include_checksum(true)?;
+    encoder.include_contentsize(true)?;
+    encoder.write_all(bytes)?;
+    encoder.finish()?.flush()
+}
+
+/// Saves a freshly built PDB to the cache. Failing to save is not fatal: the PDB is still usable
+/// in memory, it just has to be rebuilt next time.
+fn save_pdb(pdb_file_path: &Path, bytes: &[u8]) {
+    if let Err(e) = write_compressed_pdb(pdb_file_path, bytes) {
+        eprintln!(
+            "warning: failed to save pattern database to {}: {e}",
+            pdb_file_path.display()
+        );
+    }
 }
 
 fn pdb_config() -> PdbConfig {
@@ -130,7 +141,7 @@ impl Solver {
                             let pdb = PdbTy::new(&pdb_config());
 
                             let bytes = pdb.as_ref();
-                            write_compressed_pdb(&pdb_file_path, bytes);
+                            save_pdb(&pdb_file_path, bytes);
 
                             pdb
                         });
@@ -230,7 +241,7 @@ impl Solver {
                         let solver = Solver4x4Mtm::new(&pdb_config());
 
                         let bytes = solver.pdb().as_ref();
-                        write_compressed_pdb(&pdb_file_path, bytes);
+                        save_pdb(&pdb_file_path, bytes);
 
                         solver
                     })
@@ -282,7 +293,7 @@ impl Solver {
                                 .unwrap();
 
                             let bytes = solver.pdb().as_ref();
-                            write_compressed_pdb(&pdb_file_path, bytes);
+                            save_pdb(&pdb_file_path, bytes);
 
                             solver
                         })
