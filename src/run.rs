@@ -31,16 +31,20 @@ use crate::{
 };
 
 pub struct Runner {
-    solver: Solver,
+    /// Created on first use, so that commands which don't solve anything never touch the PDB
+    /// cache.
+    solver: Option<Solver>,
 }
 
 type Result = core::result::Result<(), Box<dyn Error>>;
 
 impl Runner {
     pub fn new() -> Self {
-        Self {
-            solver: Solver::new(),
-        }
+        Self { solver: None }
+    }
+
+    fn solver(&mut self) -> &mut Solver {
+        self.solver.get_or_insert_with(Solver::new)
     }
 
     fn apply(state: &mut Puzzle, alg: &Algorithm) -> Result {
@@ -89,7 +93,7 @@ impl Runner {
             Err("filter-optimal: failed to apply inverse algorithm")?;
         }
 
-        let solution = self.solver.solve_with_context(
+        let solution = self.solver().solve_with_context(
             &p,
             &SolverContext {
                 metric,
@@ -173,7 +177,7 @@ impl Runner {
             Err("opt-diff: failed to apply inverse algorithm")?;
         }
 
-        let solution = self.solver.solve_with_context(
+        let solution = self.solver().solve_with_context(
             &p,
             &SolverContext {
                 metric,
@@ -202,7 +206,7 @@ impl Runner {
             let mut puzzle = Puzzle::new(size);
             puzzle.apply_alg(&slice);
 
-            let solution = self.solver.solve_with_context(
+            let solution = self.solver().solve_with_context(
                 &puzzle,
                 &SolverContext {
                     metric,
@@ -327,7 +331,7 @@ impl Runner {
         let context = SolverContext { metric, label };
 
         Ok(self
-            .solver
+            .solver()
             .solve_with_config_and_context(puzzle, config, &context)?)
     }
 

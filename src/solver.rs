@@ -42,19 +42,25 @@ type BoxSolverInit = Box<dyn FnOnce() -> BoxSolver>;
 
 type Remap = Box<dyn Fn(SolverKey) -> Option<SolverKey>>;
 
-fn pdb_dir() -> PathBuf {
-    let mut dir = ProjectDirs::from("", "", "slidy-cli")
-        .unwrap()
+/// The directory PDBs are cached in, or `None` if the platform has no cache directory (e.g. no
+/// home directory could be determined).
+fn default_pdb_dir() -> Option<PathBuf> {
+    let mut dir = ProjectDirs::from("", "", "slidy-cli")?
         .cache_dir()
         .to_path_buf();
     dir.push("solver");
     dir.push("pdb");
 
-    dir
+    Some(dir)
 }
 
-fn pdb_file_path(size: Size, label: LabelType, metric: Metric) -> PathBuf {
-    let path = format!(
+fn pdb_file_path(
+    pdb_dir: Option<&Path>,
+    size: Size,
+    label: LabelType,
+    metric: Metric,
+) -> Option<PathBuf> {
+    let file_name = format!(
         "{w}x{h}-{label}-{metric}.pdb.zst",
         w = size.width(),
         h = size.height(),
@@ -62,13 +68,23 @@ fn pdb_file_path(size: Size, label: LabelType, metric: Metric) -> PathBuf {
         metric = metric.pdb_file_name(),
     );
 
-    let mut file_path = pdb_dir();
-    file_path.push(path);
+    Some(pdb_dir?.join(file_name))
+}
 
-    file_path
+/// Reads and decompresses a cached PDB. Returns `None` if there is no cache, the file doesn't
+/// exist, or it can't be decompressed.
+fn read_compressed_pdb(pdb_file_path: Option<&Path>) -> Option<Box<[u8]>> {
+    let file = File::open(pdb_file_path?).ok()?;
+    let bytes = zstd::decode_all(BufReader::new(file)).ok()?;
+
+    Some(bytes.into_boxed_slice())
 }
 
 fn write_compressed_pdb(pdb_file_path: &Path, bytes: &[u8]) -> io::Result<()> {
+    if let Some(dir) = pdb_file_path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+
     let file = File::create(pdb_file_path)?;
     let writer = BufWriter::new(file);
 
@@ -81,7 +97,12 @@ fn write_compressed_pdb(pdb_file_path: &Path, bytes: &[u8]) -> io::Result<()> {
 
 /// Saves a freshly built PDB to the cache. Failing to save is not fatal: the PDB is still usable
 /// in memory, it just has to be rebuilt next time.
-fn save_pdb(pdb_file_path: &Path, bytes: &[u8]) {
+fn save_pdb(pdb_file_path: Option<&Path>, bytes: &[u8]) {
+    let Some(pdb_file_path) = pdb_file_path else {
+        eprintln!("warning: no cache directory available, so the pattern database was not saved");
+        return;
+    };
+
     if let Err(e) = write_compressed_pdb(pdb_file_path, bytes) {
         eprintln!(
             "warning: failed to save pattern database to {}: {e}",
@@ -111,13 +132,18 @@ pub struct Solver {
 }
 
 impl Solver {
+    /// Creates a solver that caches PDBs in the user's cache directory.
     pub fn new() -> Self {
+        Self::with_pdb_dir(default_pdb_dir().as_deref())
+    }
+
+    /// Creates a solver that caches PDBs in `pdb_dir`, or doesn't cache them at all if `pdb_dir`
+    /// is `None`. The directory is only created when a PDB is first saved.
+    pub fn with_pdb_dir(pdb_dir: Option<&Path>) -> Self {
         let mut this = Self {
             solvers: HashMap::new(),
             remaps: Vec::new(),
         };
-
-        std::fs::create_dir_all(pdb_dir()).unwrap();
 
         macro_rules! small {
             ($pdb_file_path:expr, $pdb_ty:ty, $solver_ty:ty) => {{
@@ -127,12 +153,8 @@ impl Solver {
                     type PdbTy = $pdb_ty;
                     type SolverTy = $solver_ty;
 
-                    let pdb = File::open(&pdb_file_path)
-                        .ok()
-                        .and_then(|file| {
-                            let reader = BufReader::new(file);
-                            let bytes = zstd::decode_all(reader).ok()?.into_boxed_slice();
-
+                    let pdb = read_compressed_pdb(pdb_file_path.as_deref())
+                        .and_then(|bytes| {
                             // SAFETY: this computes a checksum to verify correctness, which is
                             // good enough here.
                             unsafe { PdbTy::try_from_bytes(bytes) }
@@ -141,7 +163,7 @@ impl Solver {
                             let pdb = PdbTy::new(&pdb_config());
 
                             let bytes = pdb.as_ref();
-                            save_pdb(&pdb_file_path, bytes);
+                            save_pdb(pdb_file_path.as_deref(), bytes);
 
                             pdb
                         });
@@ -165,8 +187,8 @@ impl Solver {
 
                 let size = Size::new(max, min).unwrap();
 
-                let file_name_stm = pdb_file_path(size, LabelType::RowGrids, Metric::Stm);
-                let file_name_mtm = pdb_file_path(size, LabelType::RowGrids, Metric::Mtm);
+                let file_name_stm = pdb_file_path(pdb_dir, size, LabelType::RowGrids, Metric::Stm);
+                let file_name_mtm = pdb_file_path(pdb_dir, size, LabelType::RowGrids, Metric::Mtm);
 
                 this.register(
                     size,
@@ -219,34 +241,24 @@ impl Solver {
             Solver4x4Stm::default,
         );
 
-        this.register(
-            Size::new(4, 4).unwrap(),
-            LabelType::RowGrids,
-            Metric::Mtm,
-            || {
-                let size = Size::new(4, 4).unwrap();
-                let pdb_file_path = pdb_file_path(size, LabelType::RowGrids, Metric::Mtm);
+        let size = Size::new(4, 4).unwrap();
+        let pdb_file_path_4x4_mtm = pdb_file_path(pdb_dir, size, LabelType::RowGrids, Metric::Mtm);
+        this.register(size, LabelType::RowGrids, Metric::Mtm, move || {
+            read_compressed_pdb(pdb_file_path_4x4_mtm.as_deref())
+                .and_then(|bytes| {
+                    // SAFETY: this computes a checksum to verify correctness, which is good
+                    // enough here.
+                    unsafe { Solver4x4Mtm::try_with_pdb_bytes(bytes) }
+                })
+                .unwrap_or_else(|| {
+                    let solver = Solver4x4Mtm::new(&pdb_config());
 
-                File::open(&pdb_file_path)
-                    .ok()
-                    .and_then(|file| {
-                        let reader = BufReader::new(file);
-                        let bytes = zstd::decode_all(reader).ok()?.into_boxed_slice();
+                    let bytes = solver.pdb().as_ref();
+                    save_pdb(pdb_file_path_4x4_mtm.as_deref(), bytes);
 
-                        // SAFETY: this computes a checksum to verify correctness, which is
-                        // good enough here.
-                        unsafe { Solver4x4Mtm::try_with_pdb_bytes(bytes) }
-                    })
-                    .unwrap_or_else(|| {
-                        let solver = Solver4x4Mtm::new(&pdb_config());
-
-                        let bytes = solver.pdb().as_ref();
-                        save_pdb(&pdb_file_path, bytes);
-
-                        solver
-                    })
-            },
-        );
+                    solver
+                })
+        });
 
         // Labels
 
@@ -259,15 +271,11 @@ impl Solver {
 
                 let size = Size::new(w, h).unwrap();
 
+                let pdb_file_path = pdb_file_path(pdb_dir, size, target, metric);
+
                 let solver = move || {
-                    let pdb_file_path = pdb_file_path(size, target, metric);
-
-                    File::open(&pdb_file_path)
-                        .ok()
-                        .and_then(|file| {
-                            let reader = BufReader::new(file);
-                            let bytes = zstd::decode_all(reader).ok()?.into_boxed_slice();
-
+                    read_compressed_pdb(pdb_file_path.as_deref())
+                        .and_then(|bytes| {
                             // SAFETY: It's possible for the user to manually swap out a pdb file with
                             // a bad file, but realistically they probably won't. We store them with a
                             // checksum to guard against file corruption.
@@ -293,7 +301,7 @@ impl Solver {
                                 .unwrap();
 
                             let bytes = solver.pdb().as_ref();
-                            save_pdb(&pdb_file_path, bytes);
+                            save_pdb(pdb_file_path.as_deref(), bytes);
 
                             solver
                         })
