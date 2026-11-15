@@ -49,59 +49,73 @@ fn default_pdb_dir() -> Option<PathBuf> {
     let mut dir = ProjectDirs::from("", "", "slidy-cli")?
         .cache_dir()
         .to_path_buf();
-    dir.push("solver");
     dir.push(format!("v{SOLVER_VERSION}"));
+    dir.push("solver");
     dir.push("pdb");
 
     Some(dir)
 }
 
-/// The move set PDBs are built for. Only the standard moves exist for now, but this is a directory
-/// level of its own so that other move sets can be added without renaming existing files.
+/// The move set PDBs are built for. Only the standard moves exist for now, but it is part of the
+/// file name so that other move sets can be added without renaming existing files.
 const MOVE_SET: &str = "standard";
 
-/// The kind of solver a PDB belongs to. Each kind has its own PDB format, and its own directory in
-/// the cache.
-#[derive(Clone, Copy, Debug)]
-enum PdbKind<'a> {
-    /// `slidy::solver::small`, for puzzles with few enough states to store every one.
-    Small,
-    /// `slidy::solver::size4x4`, for the 4x4 MTM solver.
-    Size4x4,
-    /// `slidy::solver::projection`. Its PDB depends on the prune target, not the target, so it is
-    /// keyed by the prune target's name.
-    Projection { prune_target: &'a str },
+/// The file name of a cached PDB, `<width>x<height>-<metric>-<solved state>-<move set>.pdb.zst`,
+/// e.g. `4x4-stm-fringe-standard.pdb.zst`.
+///
+/// `solved_state` is the label the PDB is built for. For projection PDBs that is the prune target,
+/// not the target, because the prune target (with the size and metric) is all the PDB depends on.
+fn pdb_file_name(size: Size, metric: Metric, solved_state: &str) -> String {
+    format!(
+        "{w}x{h}-{metric}-{solved_state}-{MOVE_SET}.pdb.zst",
+        w = size.width(),
+        h = size.height(),
+        metric = metric.pdb_file_name(),
+    )
 }
 
-/// The path of a cached PDB:
+/// Hands out PDB file paths while solvers are registered, and checks that no two different kinds
+/// of PDB are given the same file.
 ///
-/// ```text
-/// <pdb_dir>/<kind>[/<prune target>]/<move set>/<metric>/<width>x<height>.pdb.zst
-/// ```
-///
-/// For example `projection/fringe/standard/stm/4x4.pdb.zst`.
-fn pdb_file_path(
-    pdb_dir: Option<&Path>,
-    kind: PdbKind<'_>,
-    metric: Metric,
-    size: Size,
-) -> Option<PathBuf> {
-    let mut path = pdb_dir?.to_path_buf();
+/// File names don't say which solver a PDB belongs to, so e.g. a projection solver for `row-grids`
+/// would get the same name as a small solver's PDB, despite the formats being different. Each one
+/// would then reject the other's file and rebuild it on every use.
+struct PdbPaths<'a> {
+    dir: Option<&'a Path>,
+    owners: HashMap<String, &'static str>,
+}
 
-    match kind {
-        PdbKind::Small => path.push("small"),
-        PdbKind::Size4x4 => path.push("4x4"),
-        PdbKind::Projection { prune_target } => {
-            path.push("projection");
-            path.push(prune_target);
+impl<'a> PdbPaths<'a> {
+    fn new(dir: Option<&'a Path>) -> Self {
+        Self {
+            dir,
+            owners: HashMap::new(),
         }
     }
 
-    path.push(MOVE_SET);
-    path.push(metric.pdb_file_name());
-    path.push(format!("{}x{}.pdb.zst", size.width(), size.height()));
+    /// The path of a PDB, or `None` if PDBs aren't being cached. `owner` identifies the PDB
+    /// format: registrations that share a file must use the same `owner`.
+    ///
+    /// # Panics
+    ///
+    /// If the file has already been given to a different `owner`.
+    fn path(
+        &mut self,
+        size: Size,
+        metric: Metric,
+        solved_state: &str,
+        owner: &'static str,
+    ) -> Option<PathBuf> {
+        let name = pdb_file_name(size, metric, solved_state);
 
-    Some(path)
+        let previous = *self.owners.entry(name.clone()).or_insert(owner);
+        assert_eq!(
+            previous, owner,
+            "PDB file {name} would be shared by {previous} and {owner}"
+        );
+
+        Some(self.dir?.join(name))
+    }
 }
 
 /// The number of entries in the projection PDB that `slidy` builds for `prune_target` on a puzzle
@@ -218,6 +232,9 @@ impl Solver {
             remaps: Vec::new(),
         };
 
+        let mut pdb_paths = PdbPaths::new(pdb_dir);
+        let row_grids = LabelType::RowGrids.pdb_file_name();
+
         macro_rules! small {
             ($pdb_file_path:expr, $pdb_ty:ty, $solver_ty:ty) => {{
                 let pdb_file_path = $pdb_file_path.clone();
@@ -260,8 +277,8 @@ impl Solver {
 
                 let size = Size::new(max, min).unwrap();
 
-                let file_name_stm = pdb_file_path(pdb_dir, PdbKind::Small, Metric::Stm, size);
-                let file_name_mtm = pdb_file_path(pdb_dir, PdbKind::Small, Metric::Mtm, size);
+                let file_name_stm = pdb_paths.path(size, Metric::Stm, row_grids, "small solver");
+                let file_name_mtm = pdb_paths.path(size, Metric::Mtm, row_grids, "small solver");
 
                 this.register(
                     size,
@@ -315,7 +332,7 @@ impl Solver {
         );
 
         let size = Size::new(4, 4).unwrap();
-        let pdb_file_path_4x4_mtm = pdb_file_path(pdb_dir, PdbKind::Size4x4, Metric::Mtm, size);
+        let pdb_file_path_4x4_mtm = pdb_paths.path(size, Metric::Mtm, row_grids, "4x4 MTM solver");
         this.register(size, LabelType::RowGrids, Metric::Mtm, move || {
             read_compressed_pdb(pdb_file_path_4x4_mtm.as_deref())
                 .and_then(|bytes| {
@@ -344,10 +361,12 @@ impl Solver {
 
                 let size = Size::new(w, h).unwrap();
 
-                let kind = PdbKind::Projection {
-                    prune_target: $prune_name,
-                };
-                let pdb_file_path = pdb_file_path(pdb_dir, kind, metric, size);
+                let pdb_file_path = pdb_paths.path(
+                    size,
+                    metric,
+                    $prune_name,
+                    std::any::type_name::<$prune_target>(),
+                );
 
                 let solver = move || {
                     read_compressed_pdb(pdb_file_path.as_deref())
@@ -873,45 +892,62 @@ mod tests {
     }
 
     #[test]
-    fn pdb_file_paths() {
-        let dir = Path::new("pdb");
-        let path =
-            |kind, metric, w, h| pdb_file_path(Some(dir), kind, metric, Size::new(w, h).unwrap());
+    fn pdb_file_names() {
+        let name = |w, h, metric, solved_state| {
+            pdb_file_name(Size::new(w, h).unwrap(), metric, solved_state)
+        };
 
         assert_eq!(
-            path(PdbKind::Small, Metric::Stm, 4, 3),
-            Some(dir.join("small/standard/stm/4x3.pdb.zst"))
+            name(4, 3, Metric::Stm, LabelType::RowGrids.pdb_file_name()),
+            "4x3-stm-row-grids-standard.pdb.zst"
         );
         assert_eq!(
-            path(PdbKind::Size4x4, Metric::Mtm, 4, 4),
-            Some(dir.join("4x4/standard/mtm/4x4.pdb.zst"))
-        );
-        assert_eq!(
-            path(
-                PdbKind::Projection {
-                    prune_target: LabelType::Fringe.pdb_file_name()
-                },
-                Metric::Stm,
-                2,
-                5
-            ),
-            Some(dir.join("projection/fringe/standard/stm/2x5.pdb.zst"))
-        );
-        assert_eq!(
-            path(
-                PdbKind::Projection {
-                    prune_target: SplitFringePruneTarget4x4::PDB_NAME
-                },
-                Metric::Mtm,
+            name(
                 4,
-                4
+                4,
+                Metric::Stm,
+                LabelType::SplitSquareFringe.pdb_file_name()
             ),
-            Some(dir.join("projection/split-fringe-4x4-prune/standard/mtm/4x4.pdb.zst"))
+            "4x4-stm-split-square-fringe-standard.pdb.zst"
         );
         assert_eq!(
-            pdb_file_path(None, PdbKind::Small, Metric::Stm, Size::new(3, 3).unwrap()),
+            name(4, 4, Metric::Mtm, SplitFringePruneTarget4x4::PDB_NAME),
+            "4x4-mtm-split-fringe-prune-standard.pdb.zst"
+        );
+    }
+
+    #[test]
+    fn pdb_paths() {
+        let dir = Path::new("pdb");
+        let size = Size::new(3, 3).unwrap();
+
+        let mut paths = PdbPaths::new(Some(dir));
+        assert_eq!(
+            paths.path(size, Metric::Stm, "rows", "a"),
+            Some(dir.join("3x3-stm-rows-standard.pdb.zst"))
+        );
+        // The same owner may share a file.
+        assert!(paths.path(size, Metric::Stm, "rows", "a").is_some());
+
+        assert_eq!(
+            PdbPaths::new(None).path(size, Metric::Stm, "rows", "a"),
             None
         );
+    }
+
+    #[test]
+    #[should_panic(expected = "would be shared by a and b")]
+    fn pdb_paths_reject_sharing_between_owners() {
+        let size = Size::new(3, 3).unwrap();
+        let mut paths = PdbPaths::new(None);
+        let _ = paths.path(size, Metric::Stm, "rows", "a");
+        let _ = paths.path(size, Metric::Stm, "rows", "b");
+    }
+
+    #[test]
+    fn registered_pdb_files_are_not_shared_between_formats() {
+        // Registering every solver runs the `PdbPaths` checks without building any PDBs.
+        let _ = Solver::with_pdb_dir(None);
     }
 
     #[test]

@@ -4,8 +4,8 @@ use slidy::puzzle::{label::label::Label, size::Size};
 pub struct SplitFringePruneTarget4x4;
 
 impl SplitFringePruneTarget4x4 {
-    /// Name of this prune target in the PDB cache path.
-    pub const PDB_NAME: &str = "split-fringe-4x4-prune";
+    /// Name of this prune target in PDB file names.
+    pub const PDB_NAME: &str = "split-fringe-prune";
 }
 
 impl Label for SplitFringePruneTarget4x4 {
@@ -19,8 +19,8 @@ impl Label for SplitFringePruneTarget4x4 {
 pub struct DiagonalsPruneTarget4x4;
 
 impl DiagonalsPruneTarget4x4 {
-    /// Name of this prune target in the PDB cache path.
-    pub const PDB_NAME: &str = "diagonals-4x4-prune";
+    /// Name of this prune target in PDB file names.
+    pub const PDB_NAME: &str = "diagonals-prune";
 }
 
 impl Label for DiagonalsPruneTarget4x4 {
