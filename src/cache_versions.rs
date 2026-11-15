@@ -10,7 +10,8 @@
 /// current code would build or expect, for example when:
 ///
 /// - `slidy` changes how a PDB is built, encoded or indexed (see [`SLIDY_VERSION`]),
-/// - a solver registration changes what a PDB contains without changing its file name,
+/// - a solver registration changes what a PDB contains without changing its file name, e.g. a
+///   projection solver's prune target (file names only include the target),
 /// - the file naming, compression or layout of the cache changes.
 ///
 /// Projection PDBs are loaded without a hash check, so reusing a stale one gives wrong (but

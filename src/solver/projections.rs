@@ -3,11 +3,6 @@ use slidy::puzzle::{label::label::Label, size::Size};
 #[derive(Default)]
 pub struct SplitFringePruneTarget4x4;
 
-impl SplitFringePruneTarget4x4 {
-    /// Name of this prune target in PDB file names.
-    pub const PDB_NAME: &str = "split-fringe-prune";
-}
-
 impl Label for SplitFringePruneTarget4x4 {
     fn position_label(&self, _: Size, (x, y): (u64, u64)) -> u64 {
         let index = (x + 4 * y) as usize;
@@ -17,11 +12,6 @@ impl Label for SplitFringePruneTarget4x4 {
 
 #[derive(Default)]
 pub struct DiagonalsPruneTarget4x4;
-
-impl DiagonalsPruneTarget4x4 {
-    /// Name of this prune target in PDB file names.
-    pub const PDB_NAME: &str = "diagonals-prune";
-}
 
 impl Label for DiagonalsPruneTarget4x4 {
     fn position_label(&self, _: Size, (x, y): (u64, u64)) -> u64 {

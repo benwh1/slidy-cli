@@ -63,8 +63,9 @@ const MOVE_SET: &str = "standard";
 /// The file name of a cached PDB, `<width>x<height>-<metric>-<solved state>-<move set>.pdb.zst`,
 /// e.g. `4x4-stm-fringe-standard.pdb.zst`.
 ///
-/// `solved_state` is the label the PDB is built for. For projection PDBs that is the prune target,
-/// not the target, because the prune target (with the size and metric) is all the PDB depends on.
+/// `solved_state` is the label the solver solves to. For projection solvers that is the target,
+/// even when a different prune target is used: prune targets are fixed per registration, and
+/// changing one requires a `SOLVER_VERSION` bump, which moves the whole cache to a new directory.
 fn pdb_file_name(size: Size, metric: Metric, solved_state: &str) -> String {
     format!(
         "{w}x{h}-{metric}-{solved_state}-{MOVE_SET}.pdb.zst",
@@ -353,7 +354,7 @@ impl Solver {
         // Labels
 
         macro_rules! register_projection_solver {
-            ($w:literal, $h:literal, $target:tt, $prune_target:tt, $prune_name:expr, $metric:tt) => {{
+            ($w:literal, $h:literal, $target:tt, $prune_target:tt, $metric:tt) => {{
                 let w = $w;
                 let h = $h;
                 let target = LabelType::$target;
@@ -364,7 +365,7 @@ impl Solver {
                 let pdb_file_path = pdb_paths.path(
                     size,
                     metric,
-                    $prune_name,
+                    target.pdb_file_name(),
                     std::any::type_name::<$prune_target>(),
                 );
 
@@ -376,11 +377,12 @@ impl Solver {
                             }
 
                             // SAFETY: The length check above means the solver can't index the PDB
-                            // out of bounds (see `projection_pdb_len`). The path includes the prune
-                            // target and the cache directory is versioned by `SOLVER_VERSION`,
-                            // so the contents were built with the same encoding, and the zstd
-                            // checksum guards against corruption. A stale or tampered file of the
-                            // same length could only give wrong (but memory-safe) heuristic values.
+                            // out of bounds (see `projection_pdb_len`). The cache directory is
+                            // versioned by `SOLVER_VERSION`, which is bumped whenever a PDB encoding
+                            // or prune target changes, so the contents were built the same way, and
+                            // the zstd checksum guards against corruption. A stale or tampered file
+                            // of the same length could only give wrong (but memory-safe) heuristic
+                            // values.
                             let pdb = unsafe { ProjectionPdb::from_bytes_unchecked(bytes) };
 
                             ProjectionSolver::builder()
@@ -411,43 +413,12 @@ impl Solver {
 
                 this.register(size, target, metric, solver);
             }};
-            // Custom prune target, which provides its own name for the cache path.
             ($w:literal, $h:literal, $target:tt, $prune_target:tt) => {
-                register_projection_solver!(
-                    $w,
-                    $h,
-                    $target,
-                    $prune_target,
-                    $prune_target::PDB_NAME,
-                    Stm
-                );
-                register_projection_solver!(
-                    $w,
-                    $h,
-                    $target,
-                    $prune_target,
-                    $prune_target::PDB_NAME,
-                    Mtm
-                );
+                register_projection_solver!($w, $h, $target, $prune_target, Stm);
+                register_projection_solver!($w, $h, $target, $prune_target, Mtm);
             };
-            // The target is also the prune target.
             ($w:literal, $h:literal, $target:tt) => {
-                register_projection_solver!(
-                    $w,
-                    $h,
-                    $target,
-                    $target,
-                    LabelType::$target.pdb_file_name(),
-                    Stm
-                );
-                register_projection_solver!(
-                    $w,
-                    $h,
-                    $target,
-                    $target,
-                    LabelType::$target.pdb_file_name(),
-                    Mtm
-                );
+                register_projection_solver!($w, $h, $target, $target);
             };
         }
 
@@ -909,10 +880,6 @@ mod tests {
                 LabelType::SplitSquareFringe.pdb_file_name()
             ),
             "4x4-stm-split-square-fringe-standard.pdb.zst"
-        );
-        assert_eq!(
-            name(4, 4, Metric::Mtm, SplitFringePruneTarget4x4::PDB_NAME),
-            "4x4-mtm-split-fringe-prune-standard.pdb.zst"
         );
     }
 
