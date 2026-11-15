@@ -13,7 +13,7 @@ use slidy::{
     algorithm::metric::{Mtm, Stm},
     puzzle::{
         label::label::{
-            Checkerboard, Diagonals, Fringe, RowGrids, Rows, SplitFringe, SplitSquareFringe,
+            Checkerboard, Diagonals, Fringe, Label, RowGrids, Rows, SplitFringe, SplitSquareFringe,
             SquareFringe, Trivial,
         },
         puzzle::Puzzle,
@@ -69,6 +69,75 @@ fn pdb_file_path(
     );
 
     Some(pdb_dir?.join(file_name))
+}
+
+/// Version of `slidy` that projection PDBs are built with. It is part of their file names, so
+/// upgrading `slidy` never reuses a projection PDB built with a different encoding: those PDBs are
+/// loaded without a hash check (see [`projection_pdb_len`]).
+///
+/// The `projection_pdb_version_matches_slidy` test keeps this in sync with `Cargo.lock`.
+const PROJECTION_PDB_SLIDY_VERSION: &str = "0.7.0";
+
+/// Like [`pdb_file_path`], but for projection PDBs, whose contents also depend on the prune target
+/// and the `slidy` version. `prune_target` is `None` when it is the same as `label`.
+fn projection_pdb_file_path(
+    pdb_dir: Option<&Path>,
+    size: Size,
+    label: LabelType,
+    prune_target: Option<&str>,
+    metric: Metric,
+) -> Option<PathBuf> {
+    let file_name = format!(
+        "{w}x{h}-{label}{prune}-{metric}-slidy-{version}.pdb.zst",
+        w = size.width(),
+        h = size.height(),
+        label = label.pdb_file_name(),
+        prune = prune_target.map_or_else(String::new, |p| format!("-prune-{p}")),
+        metric = metric.pdb_file_name(),
+        version = PROJECTION_PDB_SLIDY_VERSION,
+    );
+
+    Some(pdb_dir?.join(file_name))
+}
+
+/// The number of entries in the projection PDB that `slidy` builds for `prune_target` on a puzzle
+/// of size `size`.
+///
+/// This mirrors `slidy`'s own computation. The PDB has one entry per arrangement of the gap and the
+/// labelled pieces, which is the multinomial coefficient of the label counts. The projection
+/// solvers only index the PDB with encodings of projected puzzles, which are a bijection onto
+/// `0..len`, so a PDB of exactly this length can't be indexed out of bounds.
+fn projection_pdb_len<L>(prune_target: &L, size: Size) -> Option<usize>
+where
+    L: Label,
+{
+    let mut counts = HashMap::<u64, u64>::new();
+    for i in 0..size.num_pieces() {
+        let pos = (i % size.width(), i / size.width());
+        *counts
+            .entry(prune_target.position_label(size, pos))
+            .or_default() += 1;
+    }
+
+    // The gap is its own label, with a count of 1.
+    let mut remaining = size.area();
+    let mut len = 1u128;
+    for count in counts.into_values().chain([1]) {
+        len = len.checked_mul(binomial(remaining, count)?)?;
+        remaining -= count;
+    }
+
+    usize::try_from(len).ok()
+}
+
+fn binomial(n: u64, k: u64) -> Option<u128> {
+    // After step `i`, `r == C(n, i + 1)`, so every division is exact.
+    let mut r = 1u128;
+    for i in 0..k {
+        r = r.checked_mul(u128::from(n - i))? / u128::from(i + 1);
+    }
+
+    Some(r)
 }
 
 /// Reads and decompresses a cached PDB. Returns `None` if there is no cache, the file doesn't
@@ -271,14 +340,24 @@ impl Solver {
 
                 let size = Size::new(w, h).unwrap();
 
-                let pdb_file_path = pdb_file_path(pdb_dir, size, target, metric);
+                let prune_target_name = (stringify!($prune_target) != stringify!($target))
+                    .then_some(stringify!($prune_target));
+                let pdb_file_path =
+                    projection_pdb_file_path(pdb_dir, size, target, prune_target_name, metric);
 
                 let solver = move || {
                     read_compressed_pdb(pdb_file_path.as_deref())
                         .and_then(|bytes| {
-                            // SAFETY: It's possible for the user to manually swap out a pdb file with
-                            // a bad file, but realistically they probably won't. We store them with a
-                            // checksum to guard against file corruption.
+                            if bytes.len() != projection_pdb_len(&$prune_target, size)? {
+                                return None;
+                            }
+
+                            // SAFETY: The length check above means the solver can't index the PDB
+                            // out of bounds (see `projection_pdb_len`). The file name includes the
+                            // prune target and the `slidy` version, so the contents were built with
+                            // the same encoding, and the zstd checksum guards against corruption.
+                            // Only a file deliberately replaced with different data of the same
+                            // length could give wrong (but memory-safe) heuristic values.
                             let pdb = unsafe { ProjectionPdb::from_bytes_unchecked(bytes) };
 
                             ProjectionSolver::builder()
@@ -699,5 +778,120 @@ fn fallback_solver(context: SolverContext) -> Box<dyn SolverT<Puzzle, Context = 
             MtmHeuristic(ManhattanDistance(Checkerboard)),
             Checkerboard,
         )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn projection_pdb_version_matches_slidy() {
+        let lock = include_str!("../Cargo.lock");
+        let slidy_version = lock
+            .split("[[package]]")
+            .find(|package| package.contains("\nname = \"slidy\"\n"))
+            .and_then(|package| {
+                package
+                    .lines()
+                    .find_map(|line| line.strip_prefix("version = \""))
+                    .and_then(|v| v.strip_suffix('"'))
+            })
+            .expect("slidy is in Cargo.lock");
+
+        assert_eq!(
+            slidy_version, PROJECTION_PDB_SLIDY_VERSION,
+            "slidy was upgraded: update PROJECTION_PDB_SLIDY_VERSION so that projection PDBs built \
+            with the old version aren't reused"
+        );
+    }
+
+    #[test]
+    fn projection_pdb_len_matches_built_pdb() {
+        macro_rules! check {
+            ($w:literal, $h:literal, $target:expr, $metric:expr) => {{
+                let size = Size::new($w, $h).unwrap();
+                let solver = ProjectionSolver::<Puzzle, _, _, _>::builder()
+                    .size(size)
+                    .target($target)
+                    .prune_target($target)
+                    .metric($metric)
+                    .build()
+                    .unwrap();
+
+                assert_eq!(
+                    Some(solver.pdb().as_ref().len()),
+                    projection_pdb_len(&$target, size),
+                    "{}x{} {}",
+                    $w,
+                    $h,
+                    stringify!($target),
+                );
+            }};
+        }
+
+        check!(2, 2, Rows, Stm);
+        check!(3, 2, Rows, Mtm);
+        check!(2, 3, Fringe, Stm);
+        check!(3, 3, Fringe, Stm);
+        check!(3, 3, Diagonals, Mtm);
+        check!(4, 2, SplitFringe, Stm);
+        check!(2, 4, SquareFringe, Stm);
+        check!(3, 2, SplitSquareFringe, Stm);
+        check!(3, 3, Checkerboard, Stm);
+        check!(4, 4, Checkerboard, Stm);
+    }
+
+    #[test]
+    fn projection_pdb_len_custom_prune_targets() {
+        let size = Size::new(4, 4).unwrap();
+
+        // Label counts (7, 3, 2, 2, 1) plus the gap: 16! / (7! 3! 2! 2! 1! 1!).
+        assert_eq!(
+            projection_pdb_len(&SplitFringePruneTarget4x4, size),
+            Some(172_972_800)
+        );
+        // Label counts (1, 2, 7, 3, 2) plus the gap: the same multinomial.
+        assert_eq!(
+            projection_pdb_len(&DiagonalsPruneTarget4x4, size),
+            Some(172_972_800)
+        );
+    }
+
+    #[test]
+    fn projection_pdb_file_names() {
+        let dir = Path::new("pdb");
+        let size = Size::new(4, 4).unwrap();
+
+        assert_eq!(
+            projection_pdb_file_path(Some(dir), size, LabelType::Rows, None, Metric::Mtm),
+            Some(dir.join("4x4-rows-mtm-slidy-0.7.0.pdb.zst"))
+        );
+        assert_eq!(
+            projection_pdb_file_path(
+                Some(dir),
+                size,
+                LabelType::SplitFringe,
+                Some("SplitFringePruneTarget4x4"),
+                Metric::Stm
+            ),
+            Some(
+                dir.join(
+                    "4x4-split-fringe-prune-SplitFringePruneTarget4x4-stm-slidy-0.7.0.pdb.zst"
+                )
+            )
+        );
+        assert_eq!(
+            projection_pdb_file_path(None, size, LabelType::Rows, None, Metric::Stm),
+            None
+        );
+    }
+
+    #[test]
+    fn binomial_values() {
+        assert_eq!(binomial(5, 0), Some(1));
+        assert_eq!(binomial(5, 2), Some(10));
+        assert_eq!(binomial(16, 8), Some(12870));
+        assert_eq!(binomial(30, 15), Some(155_117_520));
     }
 }
