@@ -324,21 +324,17 @@ impl Solver {
                     small!(file_name_mtm, PdbMtm, SolverMtm),
                 );
 
+                // The small solvers also solve the transposed size, so share one solver (and one
+                // copy of its PDB) between both orientations. The remapped key has the wrong size
+                // for the puzzle, which is fine because the solver is still given the original
+                // puzzle.
                 if max != min {
-                    let size = size.transpose();
+                    let transposed = size.transpose();
 
-                    this.register(
-                        size,
-                        LabelType::RowGrids,
-                        Metric::Stm,
-                        small!(file_name_stm, PdbStm, SolverStm),
-                    );
-                    this.register(
-                        size,
-                        LabelType::RowGrids,
-                        Metric::Mtm,
-                        small!(file_name_mtm, PdbMtm, SolverMtm),
-                    );
+                    this.register_remap(move |key| {
+                        (key.size == transposed && key.label == LabelType::RowGrids)
+                            .then_some(SolverKey { size, ..key })
+                    });
                 }
             }};
         }
@@ -838,6 +834,8 @@ fn fallback_solver(context: SolverContext) -> Box<dyn SolverT<Puzzle, Context = 
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr as _;
+
     use super::*;
 
     #[test]
@@ -970,6 +968,34 @@ mod tests {
         assert_eq!(files(), 2, "temporary file left behind");
 
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn transposed_small_sizes_share_a_solver() {
+        let mut solver = Solver::with_pdb_dir(None);
+        let key = |w, h, metric| SolverKey {
+            size: Size::new(w, h).unwrap(),
+            label: LabelType::RowGrids,
+            metric,
+        };
+
+        for metric in [Metric::Stm, Metric::Mtm] {
+            assert_eq!(solver.remap_key(key(2, 3, metric)), key(3, 2, metric));
+            assert_eq!(solver.remap_key(key(3, 2, metric)), key(3, 2, metric));
+            assert!(!solver.solvers.contains_key(&key(2, 3, metric)));
+
+            for state in ["0 3/2 1/5 4", "4 1 2/5 0 3"] {
+                let mut puzzle = Puzzle::from_str(state).unwrap();
+                let context = SolverContext {
+                    metric,
+                    label: LabelType::RowGrids,
+                };
+                let solution = solver.solve_with_context(&puzzle, &context).unwrap();
+
+                assert!(puzzle.try_apply_alg(&solution), "{state}: {solution}");
+                assert!(puzzle.is_solved(), "{state}: {solution}");
+            }
+        }
     }
 
     #[test]
