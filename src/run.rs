@@ -352,14 +352,14 @@ impl Runner {
         Ok(())
     }
 
-    fn simplify(&mut self, alg: &mut Algorithm, verbose: bool) -> Result {
-        let orig = alg.len_stm();
+    fn simplify(&mut self, alg: &mut Algorithm, metric: Metric, verbose: bool) -> Result {
+        let orig = alg.len_metric(metric);
         alg.simplify();
-        let new = alg.len_stm();
+        let new = alg.len_metric(metric);
 
         writeln!(self.out, "{alg}")?;
         if verbose {
-            writeln!(self.out, "Original length: {orig}")?;
+            eprintln!("Original length: {orig}");
 
             let diff = orig - new;
             let percent = if orig == 0 {
@@ -368,7 +368,7 @@ impl Runner {
                 diff as f32 * 100.0 / orig as f32
             };
 
-            writeln!(self.out, "New length: {new} [-{diff}, -{percent:.4}%]")?;
+            eprintln!("New length: {new} [-{diff}, -{percent:.4}%]");
         }
 
         Ok(())
@@ -562,9 +562,11 @@ impl Runner {
                 },
                 state,
             ),
-            Command::Simplify { alg, verbose } => {
-                try_fallible_fn(|a| self.simplify(a, verbose), alg)
-            }
+            Command::Simplify {
+                alg,
+                metric,
+                verbose,
+            } => try_fallible_fn(|a| self.simplify(a, metric, verbose), alg),
             Command::Slice {
                 alg,
                 start,
@@ -602,15 +604,11 @@ impl Runner {
                             // each solution straight to stdout so it appears as soon as it's
                             // found, and stop searching if stdout is gone.
                             let mut out = io::stdout().lock();
-                            let written = writeln!(out, "{alg}")
-                                .and_then(|()| {
-                                    if verbose {
-                                        writeln!(out, "{} moves", alg.len_metric(metric))
-                                    } else {
-                                        Ok(())
-                                    }
-                                })
-                                .and_then(|()| out.flush());
+                            let written = writeln!(out, "{alg}").and_then(|()| out.flush());
+
+                            if verbose {
+                                eprintln!("{} moves", alg.len_metric(metric));
+                            }
 
                             if written.is_ok() {
                                 ControlFlow::Continue(())

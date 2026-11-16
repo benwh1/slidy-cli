@@ -294,7 +294,11 @@ pub enum Command {
         /// Algorithm to simplify. If omitted, algorithms are read from stdin, one per line.
         alg: Option<Algorithm>,
 
-        /// Also print the lengths before and after simplifying.
+        /// Metric to measure lengths in, for --verbose.
+        #[clap(short, long, value_enum, default_value_t = Metric::Stm)]
+        metric: Metric,
+
+        /// Also print the lengths before and after simplifying to stderr.
         #[clap(short, long)]
         verbose: bool,
     },
@@ -368,7 +372,7 @@ pub enum Command {
         #[clap(long)]
         show_progress: bool,
 
-        /// Also print the length of each solution.
+        /// Also print the length of each solution to stderr.
         #[clap(short, long)]
         verbose: bool,
     },
