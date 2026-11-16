@@ -32,7 +32,6 @@ codegen-units = 1
 opt-level = 3
 debug = false
 strip = true
-panic = "abort"
 
 [lints.clippy]
 module_inception = "allow"
