@@ -28,8 +28,8 @@ use slidy::{
 use crate::{
     algorithm_ext::AlgorithmExt as _,
     args::Args,
-    command::Command,
-    enums::{ColoringType, LabelType, Metric, StateFormatter},
+    command::{Command, RenderOptions},
+    enums::{LabelType, Metric, StateFormatter},
     solver::{Solver, SolverContext},
     util::{loop_fn, try_fallible_fn, try_fallible_fn_once},
 };
@@ -319,21 +319,21 @@ impl Runner {
         Ok(())
     }
 
-    fn render(
-        &mut self,
-        state: &Puzzle,
-        label_type: LabelType,
-        coloring_type: ColoringType,
-        tile_size: f32,
-        tile_gap: f32,
-        border_label: LabelType,
-        border_coloring: ColoringType,
-        border_thickness: f32,
-        font_size: f32,
-        output: &str,
-    ) -> Result {
-        let coloring = coloring_type.to_box_dyn_coloring();
-        let base_scheme = Box::new(Scheme::new(label_type, &coloring));
+    fn render(&mut self, state: &Puzzle, options: &RenderOptions) -> Result {
+        let RenderOptions {
+            label,
+            coloring,
+            tile_size,
+            tile_gap,
+            border_label,
+            border_coloring,
+            border_thickness,
+            font_size,
+            ref output,
+        } = *options;
+
+        let coloring = coloring.to_box_dyn_coloring();
+        let base_scheme = Box::new(Scheme::new(label, &coloring));
         let border_coloring = border_coloring.to_box_dyn_coloring();
         let border_scheme =
             Box::new(Scheme::new(border_label, &border_coloring)) as Box<dyn ColorScheme>;
@@ -540,34 +540,9 @@ impl Runner {
             Command::PiecePosition { state, piece } => {
                 try_fallible_fn(|s| self.piece_position(s, piece), state)
             }
-            Command::Render {
-                state,
-                label,
-                coloring,
-                tile_size,
-                tile_gap,
-                border_label,
-                border_coloring,
-                border_thickness,
-                font_size,
-                output,
-            } => try_fallible_fn_once(
-                |s| {
-                    self.render(
-                        s,
-                        label,
-                        coloring,
-                        tile_size,
-                        tile_gap,
-                        border_label,
-                        border_coloring,
-                        border_thickness,
-                        font_size,
-                        &output,
-                    )
-                },
-                state,
-            ),
+            Command::Render { state, options } => {
+                try_fallible_fn_once(|s| self.render(s, &options), state)
+            }
             Command::Simplify {
                 alg,
                 metric,

@@ -726,10 +726,20 @@ impl Solver {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SolverContext {
     pub metric: Metric,
     pub label: LabelType,
+}
+
+/// Used by [`SolverT::solve`]: fully solves the puzzle in STM.
+impl Default for SolverContext {
+    fn default() -> Self {
+        Self {
+            metric: Metric::Stm,
+            label: LabelType::RowGrids,
+        }
+    }
 }
 
 impl SolverT<Puzzle> for Solver {

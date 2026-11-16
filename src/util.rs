@@ -1,10 +1,10 @@
 use std::{error::Error, io::IsTerminal as _, str::FromStr};
 
-pub fn try_fallible_fn<T, R, F>(mut f: F, t: Option<T>) -> Result<(), Box<dyn Error>>
+pub fn try_fallible_fn<T, F>(mut f: F, t: Option<T>) -> Result<(), Box<dyn Error>>
 where
-    T: FromStr + 'static,
+    T: FromStr,
     <T as FromStr>::Err: Error,
-    F: FnMut(&mut T) -> Result<R, Box<dyn Error>>,
+    F: FnMut(&mut T) -> Result<(), Box<dyn Error>>,
 {
     if let Some(mut t) = t {
         f(&mut t)?;
@@ -15,11 +15,11 @@ where
     Ok(())
 }
 
-pub fn loop_fn<T, R, F>(mut f: F) -> Result<(), Box<dyn Error>>
+pub fn loop_fn<T, F>(mut f: F) -> Result<(), Box<dyn Error>>
 where
-    T: FromStr + 'static,
+    T: FromStr,
     <T as FromStr>::Err: Error,
-    F: FnMut(&mut T) -> Result<R, Box<dyn Error>>,
+    F: FnMut(&mut T) -> Result<(), Box<dyn Error>>,
 {
     for (i, line) in std::io::stdin().lines().enumerate() {
         let line_number = i + 1;
@@ -30,11 +30,11 @@ where
     Ok(())
 }
 
-pub fn try_fallible_fn_once<T, R, F>(mut f: F, t: Option<T>) -> Result<(), Box<dyn Error>>
+pub fn try_fallible_fn_once<T, F>(mut f: F, t: Option<T>) -> Result<(), Box<dyn Error>>
 where
-    T: FromStr + 'static,
+    T: FromStr,
     <T as FromStr>::Err: Error,
-    F: FnMut(&mut T) -> Result<R, Box<dyn Error>>,
+    F: FnMut(&mut T) -> Result<(), Box<dyn Error>>,
 {
     if let Some(mut t) = t {
         f(&mut t)?;
