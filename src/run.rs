@@ -587,8 +587,8 @@ impl Runner {
                 |s| {
                     let config = SolverConfig {
                         min: min_depth,
-                        max: max_depth,
-                        depth_beyond_optimal,
+                        max: max_depth.unwrap_or(u64::MAX),
+                        depth_beyond_optimal: depth_beyond_optimal.unwrap_or(u64::MAX),
                         num_solutions,
                         end_of_iter_callback: show_progress.then_some(Box::new(
                             |stats| -> ControlFlow<()> {

@@ -11,15 +11,24 @@ use slidy::puzzle::{
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, ValueEnum)]
 pub enum LabelType {
+    /// Every position has the same label.
     Trivial,
+    /// Every position has its own label.
     #[default]
     RowGrids,
+    /// One label per row.
     Rows,
+    /// One label per fringe (a row and column together), working in from the top left.
     Fringe,
+    /// Rows or columns, until the rest of the puzzle is square, then fringes.
     SquareFringe,
+    /// Like fringe, but the row and column of each fringe get different labels.
     SplitFringe,
+    /// Like square-fringe, but with split fringes in the square part.
     SplitSquareFringe,
+    /// One label per bottom-left to top-right diagonal, starting from the top left.
     Diagonals,
+    /// Two labels, alternating like a checkerboard.
     Checkerboard,
 }
 
@@ -71,9 +80,12 @@ impl Label for LabelType {
 
 #[derive(Clone, Copy, Debug, Default, ValueEnum)]
 pub enum ColoringType {
+    /// Transparent.
     None,
+    /// A different colour for each label.
     #[default]
     Rainbow,
+    /// Black.
     Black,
 }
 
@@ -89,15 +101,19 @@ impl ColoringType {
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, ValueEnum)]
 pub enum StateFormatter {
+    /// On one line, with rows separated by `/`.
     #[default]
     Inline,
+    /// One row per line, with the columns aligned.
     Grid,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, ValueEnum)]
 pub enum Metric {
+    /// Single-tile metric: moving one tile one space is one move.
     #[default]
     Stm,
+    /// Multi-tile metric: moving any number of tiles in a line at once is one move.
     Mtm,
 }
 
