@@ -14,8 +14,10 @@ use clap::Parser as _;
 use crate::{args::Args, run::Runner};
 
 fn main() -> ExitCode {
+    // Rust ignores SIGPIPE by default, which turns writing to a closed pipe (e.g. `slidy generate
+    // -n 1000000 | head`) into an error. Restore the default so the process exits quietly instead.
     #[cfg(unix)]
-    #[allow(clippy::undocumented_unsafe_blocks)]
+    // SAFETY: This runs before any other threads are started, and SIG_DFL is a valid handler.
     unsafe {
         libc::signal(libc::SIGPIPE, libc::SIG_DFL);
     }

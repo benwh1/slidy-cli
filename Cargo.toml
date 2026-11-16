@@ -13,12 +13,14 @@ keywords = ["cli", "puzzle", "15-puzzle"]
 clap = { version = "^4", features = ["derive"] }
 clap_complete = "^4.6"
 directories = "^6"
-libc = "^0.2"
 palette = "^0.7"
 rand = "^0.10"
 slidy = { version = "^0.7", features = ["palette"] }
 svg = "^0.18"
 zstd = "^0.14"
+
+[target.'cfg(unix)'.dependencies]
+libc = "^0.2"
 
 [[bin]]
 name = "slidy"
