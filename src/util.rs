@@ -47,7 +47,10 @@ where
     if let Some(mut t) = t {
         f(&mut t)?;
     } else {
-        let line = std::io::stdin().lines().next().unwrap()?;
+        let line = std::io::stdin()
+            .lines()
+            .next()
+            .ok_or("no input given on stdin")??;
         let mut t = T::from_str(&line)?;
         f(&mut t)?;
     }
