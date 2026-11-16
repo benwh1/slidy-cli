@@ -1,5 +1,3 @@
-use std::str::FromStr as _;
-
 use clap::{ArgGroup, Subcommand};
 use clap_complete::aot::Shell;
 use slidy::{
@@ -64,7 +62,7 @@ pub enum Command {
         #[clap(short, long, default_value_t = Size::new(4, 4).unwrap())]
         size: Size,
 
-        #[clap(short, long, default_value = "stm")]
+        #[clap(short, long, value_enum, default_value_t = Metric::Stm)]
         metric: Metric,
 
         #[clap(short, long)]
@@ -91,11 +89,10 @@ pub enum Command {
     },
 
     #[clap(about = "Formats puzzle states inline or in a grid layout")]
-    #[clap(group(ArgGroup::new("formatter")))]
     FormatState {
         state: Option<Puzzle>,
 
-        #[clap(short, long, default_value = "inline")]
+        #[clap(short, long, value_enum, default_value_t = StateFormatter::Inline)]
         format: StateFormatter,
     },
 
@@ -108,22 +105,17 @@ pub enum Command {
     },
 
     #[clap(about = "Generates random scrambles")]
-    #[clap(group(ArgGroup::new("scrambler")))]
-    #[clap(group(ArgGroup::new("scrambler_random_moves").requires("random_moves").multiple(true)))]
     Generate {
         #[clap(short, long, default_value_t = 1)]
         number: u64,
 
-        #[clap(short, long, default_value_t = Size::new(4, 4).unwrap(), value_parser = Size::from_str)]
+        #[clap(short, long, default_value_t = Size::new(4, 4).unwrap())]
         size: Size,
 
         #[clap(long)]
         seed: Option<u64>,
 
-        #[clap(long, group = "scrambler", default_value_t = true)]
-        random_state: bool,
-
-        #[clap(long, group = "scrambler")]
+        #[clap(long)]
         random_moves: bool,
 
         #[clap(short = 'm', long, default_value_t = 80, requires = "random_moves")]
@@ -143,7 +135,7 @@ pub enum Command {
     Length {
         alg: Option<Algorithm>,
 
-        #[clap(short, long, default_value = "stm")]
+        #[clap(short, long, value_enum, default_value_t = Metric::Stm)]
         metric: Metric,
     },
 
@@ -163,7 +155,7 @@ pub enum Command {
         #[clap(short, long, default_value_t = Size::new(4, 4).unwrap())]
         size: Size,
 
-        #[clap(short, long, default_value = "stm")]
+        #[clap(short, long, value_enum, default_value_t = Metric::Stm)]
         metric: Metric,
     },
 
@@ -177,7 +169,7 @@ pub enum Command {
         #[clap(short, long)]
         length: u64,
 
-        #[clap(short, long, default_value = "stm")]
+        #[clap(short, long, value_enum, default_value_t = Metric::Stm)]
         metric: Metric,
     },
 
@@ -201,28 +193,28 @@ pub enum Command {
     Render {
         state: Option<Puzzle>,
 
-        #[clap(short, long, default_value = "fringe")]
+        #[clap(short, long, value_enum, default_value_t = LabelType::Fringe)]
         label: LabelType,
 
-        #[clap(short, long, default_value = "rainbow")]
+        #[clap(short, long, value_enum, default_value_t = ColoringType::Rainbow)]
         coloring: ColoringType,
 
-        #[clap(short, long, default_value = "75.0")]
+        #[clap(short, long, default_value_t = 75.0)]
         tile_size: f32,
 
-        #[clap(short = 'g', long, default_value = "0.0")]
+        #[clap(short = 'g', long, default_value_t = 0.0)]
         tile_gap: f32,
 
-        #[clap(long, default_value = "trivial")]
+        #[clap(long, value_enum, default_value_t = LabelType::Trivial)]
         border_label: LabelType,
 
-        #[clap(long, default_value = "black")]
+        #[clap(long, value_enum, default_value_t = ColoringType::Black)]
         border_coloring: ColoringType,
 
-        #[clap(short, long, default_value = "0.0")]
+        #[clap(short, long, default_value_t = 0.0)]
         border_thickness: f32,
 
-        #[clap(short = 's', long, default_value = "30.0")]
+        #[clap(short = 's', long, default_value_t = 30.0)]
         font_size: f32,
 
         #[clap(short, long)]
@@ -241,13 +233,13 @@ pub enum Command {
     Slice {
         alg: Option<Algorithm>,
 
-        #[clap(short, long, default_value = "0")]
+        #[clap(short, long, default_value_t = 0)]
         start: u64,
 
         #[clap(short, long)]
         end: Option<u64>,
 
-        #[clap(short, long, default_value = "stm")]
+        #[clap(short, long, value_enum, default_value_t = Metric::Stm)]
         metric: Metric,
     },
 
@@ -258,10 +250,10 @@ pub enum Command {
     Solve {
         state: Option<Puzzle>,
 
-        #[clap(short, long, default_value = "stm")]
+        #[clap(short, long, value_enum, default_value_t = Metric::Stm)]
         metric: Metric,
 
-        #[clap(short, long, default_value = "row-grids")]
+        #[clap(short, long, value_enum, default_value_t = LabelType::RowGrids)]
         label: LabelType,
 
         #[clap(long, default_value_t = 0)]
@@ -288,7 +280,7 @@ pub enum Command {
         #[clap(long, conflicts_with_all = ["num_solutions", "depth_beyond_optimal"])]
         all_optimal: bool,
 
-        #[clap(long, default_value_t = false)]
+        #[clap(long)]
         show_progress: bool,
 
         #[clap(short, long)]

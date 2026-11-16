@@ -489,7 +489,6 @@ impl Runner {
                 num_moves,
                 allow_backtracking,
                 allow_illegal_moves,
-                ..
             } => {
                 if random_moves {
                     let scrambler = RandomMoves {

@@ -13,3 +13,15 @@ pub struct Args {
     #[command(subcommand)]
     pub command: Command,
 }
+
+#[cfg(test)]
+mod tests {
+    use clap::CommandFactory as _;
+
+    use super::*;
+
+    #[test]
+    fn cli_is_valid() {
+        Args::command().debug_assert();
+    }
+}
