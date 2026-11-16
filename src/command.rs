@@ -252,7 +252,8 @@ pub enum Command {
         /// Puzzle state to render. If omitted, a single state is read from stdin.
         state: Option<Puzzle>,
 
-        /// Label used to colour the tiles: tiles with the same label get the same colour.
+        /// Label used to colour the tiles: tiles with the same label get the same colour. The
+        /// default, fringe, gives each fringe its own colour.
         #[clap(short, long, value_enum, default_value_t = LabelType::Fringe)]
         label: LabelType,
 
@@ -261,11 +262,11 @@ pub enum Command {
         coloring: ColoringType,
 
         /// Width and height of each tile, in pixels.
-        #[clap(short, long, default_value_t = 75.0)]
+        #[clap(short, long, default_value_t = 75.0, value_parser = positive_f32)]
         tile_size: f32,
 
         /// Space between tiles, in pixels.
-        #[clap(short = 'g', long, default_value_t = 0.0)]
+        #[clap(short = 'g', long, default_value_t = 0.0, value_parser = non_negative_f32)]
         tile_gap: f32,
 
         /// Label used to colour the tile borders.
@@ -277,14 +278,14 @@ pub enum Command {
         border_coloring: ColoringType,
 
         /// Thickness of the tile borders, in pixels.
-        #[clap(short, long, default_value_t = 0.0)]
+        #[clap(short, long, default_value_t = 0.0, value_parser = non_negative_f32)]
         border_thickness: f32,
 
         /// Font size of the tile numbers, in pixels.
-        #[clap(short = 's', long, default_value_t = 30.0)]
+        #[clap(short = 's', long, default_value_t = 30.0, value_parser = non_negative_f32)]
         font_size: f32,
 
-        /// File to write the SVG image to.
+        /// File to write the SVG image to, or `-` for stdout.
         #[clap(short, long)]
         output: String,
     },
@@ -388,4 +389,31 @@ pub enum Command {
         /// Algorithm to transpose. If omitted, algorithms are read from stdin, one per line.
         alg: Option<Algorithm>,
     },
+}
+
+fn parse_finite_f32(s: &str) -> Result<f32, String> {
+    let x: f32 = s.parse().map_err(|e| format!("{e}"))?;
+    if x.is_finite() {
+        Ok(x)
+    } else {
+        Err("must be a finite number".to_owned())
+    }
+}
+
+fn positive_f32(s: &str) -> Result<f32, String> {
+    let x = parse_finite_f32(s)?;
+    if x > 0.0 {
+        Ok(x)
+    } else {
+        Err("must be greater than 0".to_owned())
+    }
+}
+
+fn non_negative_f32(s: &str) -> Result<f32, String> {
+    let x = parse_finite_f32(s)?;
+    if x >= 0.0 {
+        Ok(x)
+    } else {
+        Err("must not be negative".to_owned())
+    }
 }

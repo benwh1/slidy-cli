@@ -320,6 +320,7 @@ impl Runner {
     }
 
     fn render(
+        &mut self,
         state: &Puzzle,
         label_type: LabelType,
         coloring_type: ColoringType,
@@ -347,7 +348,12 @@ impl Runner {
         let renderer = renderer.build();
 
         let svg = renderer.render(state);
-        svg::save(output, &svg).map_err(|e| format!("could not write {output}: {e}"))?;
+        if output == "-" {
+            svg::write(&mut self.out, &svg)?;
+            writeln!(self.out)?;
+        } else {
+            svg::save(output, &svg).map_err(|e| format!("could not write {output}: {e}"))?;
+        }
 
         Ok(())
     }
@@ -547,7 +553,7 @@ impl Runner {
                 output,
             } => try_fallible_fn_once(
                 |s| {
-                    Self::render(
+                    self.render(
                         s,
                         label,
                         coloring,
