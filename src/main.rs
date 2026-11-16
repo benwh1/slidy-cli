@@ -7,13 +7,13 @@ mod run;
 mod solver;
 mod util;
 
-use std::error::Error;
+use std::process::ExitCode;
 
 use clap::Parser as _;
 
 use crate::{args::Args, run::Runner};
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> ExitCode {
     #[cfg(unix)]
     #[allow(clippy::undocumented_unsafe_blocks)]
     unsafe {
@@ -21,5 +21,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     let mut runner = Runner::new();
-    runner.run(Args::parse())
+    match runner.run(Args::parse()) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("error: {e}");
+            ExitCode::FAILURE
+        }
+    }
 }

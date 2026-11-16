@@ -30,9 +30,10 @@ where
     <T as FromStr>::Err: Error,
     F: FnMut(&mut T) -> Result<R, Box<dyn Error>>,
 {
-    for line in std::io::stdin().lines() {
-        let mut t = T::from_str(&line?)?;
-        f(&mut t)?;
+    for (i, line) in std::io::stdin().lines().enumerate() {
+        let line_number = i + 1;
+        let mut t = parse(&line?).map_err(|e| format!("line {line_number}: {e}"))?;
+        f(&mut t).map_err(|e| format!("line {line_number}: {e}"))?;
     }
 
     Ok(())
@@ -51,9 +52,18 @@ where
             .lines()
             .next()
             .ok_or("no input given on stdin")??;
-        let mut t = T::from_str(&line)?;
+        let mut t = parse(&line)?;
         f(&mut t)?;
     }
 
     Ok(())
+}
+
+/// Parses one line of input, with the input included in the error message.
+fn parse<T>(s: &str) -> Result<T, Box<dyn Error>>
+where
+    T: FromStr,
+    <T as FromStr>::Err: Error,
+{
+    Ok(T::from_str(s).map_err(|e| format!("could not parse `{}`: {e}", s.trim()))?)
 }

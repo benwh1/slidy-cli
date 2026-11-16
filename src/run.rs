@@ -64,7 +64,7 @@ impl Runner {
             println!("{state}");
             Ok(())
         } else {
-            Err("apply: failed to apply algorithm")?
+            Err("failed to apply algorithm")?
         }
     }
 
@@ -87,7 +87,7 @@ impl Runner {
             println!("{target}");
             Ok(())
         } else {
-            Err("embed: failed to embed state")?
+            Err("failed to embed state")?
         }
     }
 
@@ -102,7 +102,7 @@ impl Runner {
         let inverse = alg.inverse();
 
         if !p.try_apply_alg(&inverse) {
-            Err("filter-optimal: failed to apply inverse algorithm")?;
+            Err("failed to apply inverse algorithm")?;
         }
 
         let solution = self.solver().solve_with_context(
@@ -153,7 +153,7 @@ impl Runner {
             println!("{p}");
             Ok(())
         } else {
-            Err("from-solution: failed to apply inverse solution")?
+            Err("failed to apply inverse solution")?
         }
     }
 
@@ -186,7 +186,7 @@ impl Runner {
         let mut p = Puzzle::new(size);
 
         if !p.try_apply_alg(&alg.inverse()) {
-            Err("opt-diff: failed to apply inverse algorithm")?;
+            Err("failed to apply inverse algorithm")?;
         }
 
         let solution = self.solver().solve_with_context(
@@ -265,7 +265,7 @@ impl Runner {
             "{}",
             state
                 .try_piece_at(position)
-                .ok_or("piece-at: position out of bounds")?,
+                .ok_or("position out of bounds")?,
         );
 
         Ok(())
@@ -276,7 +276,7 @@ impl Runner {
             "{}",
             state
                 .try_piece_position(piece)
-                .ok_or("piece-position: piece out of bounds")?,
+                .ok_or("piece out of bounds")?,
         );
 
         Ok(())
@@ -310,7 +310,7 @@ impl Runner {
         let renderer = renderer.build();
 
         let svg = renderer.render(state);
-        svg::save(output, &svg)?;
+        svg::save(output, &svg).map_err(|e| format!("could not write {output}: {e}"))?;
 
         Ok(())
     }
@@ -337,7 +337,9 @@ impl Runner {
 
     fn slice(alg: &Algorithm, start: u64, end: Option<u64>, metric: Metric) -> Result {
         let end = end.unwrap_or_else(|| alg.len_metric(metric));
-        let slice = alg.slice_metric(metric, start..end)?;
+        let slice = alg
+            .slice_metric(metric, start..end)
+            .map_err(|e| format!("invalid slice {start}..{end}: {e}"))?;
         println!("{slice}");
 
         Ok(())
