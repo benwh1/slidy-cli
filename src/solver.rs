@@ -168,19 +168,49 @@ fn read_compressed_pdb(pdb_file_path: Option<&Path>) -> Option<Box<[u8]>> {
     Some(bytes.into_boxed_slice())
 }
 
+/// Compresses `bytes` and writes them to `pdb_file_path` atomically.
+///
+/// The data is written to a temporary file next to the target, synced, and then renamed over the
+/// target. Readers therefore only ever see either no file or a complete one, even if this process
+/// is killed mid-write or another process is writing the same PDB at the same time.
 fn write_compressed_pdb(pdb_file_path: &Path, bytes: &[u8]) -> io::Result<()> {
     if let Some(dir) = pdb_file_path.parent() {
         std::fs::create_dir_all(dir)?;
     }
 
-    let file = File::create(pdb_file_path)?;
+    let tmp_path = tmp_file_path(pdb_file_path);
+    let result = write_compressed_file(&tmp_path, bytes)
+        .and_then(|()| std::fs::rename(&tmp_path, pdb_file_path));
+
+    if result.is_err() {
+        let _ = std::fs::remove_file(&tmp_path);
+    }
+
+    result
+}
+
+/// A temporary file path in the same directory as `path` (so that renaming it over `path` is
+/// atomic), unique to this process.
+fn tmp_file_path(path: &Path) -> PathBuf {
+    let mut file_name = path.file_name().unwrap_or_default().to_owned();
+    file_name.push(format!(".tmp.{}", std::process::id()));
+    path.with_file_name(file_name)
+}
+
+fn write_compressed_file(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    let file = File::create(path)?;
     let writer = BufWriter::new(file);
 
     let mut encoder = Encoder::new(writer, 0)?;
     encoder.include_checksum(true)?;
     encoder.include_contentsize(true)?;
     encoder.write_all(bytes)?;
-    encoder.finish()?.flush()
+
+    let file = encoder
+        .finish()?
+        .into_inner()
+        .map_err(io::IntoInnerError::into_error)?;
+    file.sync_all()
 }
 
 /// Saves a freshly built PDB to the cache. Failing to save is not fatal: the PDB is still usable
@@ -915,6 +945,31 @@ mod tests {
     fn registered_pdb_files_are_not_shared_between_formats() {
         // Registering every solver runs the `PdbPaths` checks without building any PDBs.
         let _ = Solver::with_pdb_dir(None);
+    }
+
+    #[test]
+    fn pdb_write_replaces_atomically() {
+        let dir =
+            std::env::temp_dir().join(format!("slidy-cli-test-pdb-write-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let path = dir.join("nested").join("test.pdb.zst");
+        let files = || std::fs::read_dir(path.parent().unwrap()).unwrap().count();
+
+        write_compressed_pdb(&path, b"old contents").unwrap();
+        write_compressed_pdb(&path, b"new").unwrap();
+        assert_eq!(
+            read_compressed_pdb(Some(&path)).as_deref(),
+            Some(&b"new"[..])
+        );
+        assert_eq!(files(), 1, "temporary file left behind");
+
+        // If the rename fails, the temporary file is cleaned up.
+        let blocked = dir.join("nested").join("blocked");
+        std::fs::create_dir_all(blocked.join("non-empty")).unwrap();
+        assert!(write_compressed_pdb(&blocked, b"data").is_err());
+        assert_eq!(files(), 2, "temporary file left behind");
+
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]
