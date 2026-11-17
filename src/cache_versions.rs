@@ -14,8 +14,8 @@
 ///   projection solver's prune target (file names only include the target),
 /// - the file naming, compression or layout of the cache changes.
 ///
-/// Projection PDBs are loaded without a hash check, so reusing a stale one gives wrong (but
-/// memory-safe, thanks to the length check) results. When in doubt, bump.
+/// Projection PDBs are loaded without a hash check, so reusing a stale one is memory-safe (thanks
+/// to the length check) but can give wrong solutions, panic, or hang. When in doubt, bump.
 pub const SOLVER_VERSION: &str = "0.6";
 
 /// The `slidy` version that [`SOLVER_VERSION`] was last checked against.
@@ -28,7 +28,7 @@ pub const SOLVER_VERSION: &str = "0.6";
     not(test),
     expect(dead_code, reason = "only read by the Cargo.lock check in the tests")
 )]
-pub const SLIDY_VERSION: &str = "0.7.0";
+pub const SLIDY_VERSION: &str = "0.10.0";
 
 #[cfg(test)]
 mod tests {

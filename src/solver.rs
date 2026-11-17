@@ -119,14 +119,30 @@ impl<'a> PdbPaths<'a> {
     }
 }
 
-/// The number of entries in the projection PDB that `slidy` builds for `prune_target` on a puzzle
-/// of size `size`.
+/// The length in bytes of the projection PDB that `slidy` builds for `prune_target` on a puzzle of
+/// size `size` in `metric`.
 ///
-/// This mirrors `slidy`'s own computation. The PDB has one entry per arrangement of the gap and the
-/// labelled pieces, which is the multinomial coefficient of the label counts. The projection
-/// solvers only index the PDB with encodings of projected puzzles, which are a bijection onto
-/// `0..len`, so a PDB of exactly this length can't be indexed out of bounds.
-fn projection_pdb_len<L>(prune_target: &L, size: Size) -> Option<usize>
+/// This mirrors `slidy`'s own computation. The PDB packs one entry per projected state (see
+/// [`projection_num_states`]): 1 bit per state for STM and 2 bits for MTM, rounded up to whole
+/// bytes. The projection solvers only index the PDB with encodings of projected puzzles, which are
+/// a bijection onto `0..num_states`, so a PDB of exactly this length can't be indexed out of
+/// bounds.
+fn projection_pdb_len<L>(prune_target: &L, size: Size, metric: Metric) -> Option<usize>
+where
+    L: Label,
+{
+    let states_per_byte = match metric {
+        Metric::Stm => 8,
+        Metric::Mtm => 4,
+    };
+
+    Some(projection_num_states(prune_target, size)?.div_ceil(states_per_byte))
+}
+
+/// The number of projected states for `prune_target` on a puzzle of size `size`, i.e. the number
+/// of arrangements of the gap and the labelled pieces, which is the multinomial coefficient of the
+/// label counts.
+fn projection_num_states<L>(prune_target: &L, size: Size) -> Option<usize>
 where
     L: Label,
 {
@@ -398,7 +414,7 @@ impl Solver {
                 let solver = move || {
                     read_compressed_pdb(pdb_file_path.as_deref())
                         .and_then(|bytes| {
-                            if bytes.len() != projection_pdb_len(&$prune_target, size)? {
+                            if bytes.len() != projection_pdb_len(&$prune_target, size, metric)? {
                                 return None;
                             }
 
@@ -407,8 +423,8 @@ impl Solver {
                             // versioned by `SOLVER_VERSION`, which is bumped whenever a PDB encoding
                             // or prune target changes, so the contents were built the same way, and
                             // the zstd checksum guards against corruption. A stale or tampered file
-                            // of the same length could only give wrong (but memory-safe) heuristic
-                            // values.
+                            // of the same length stays memory-safe, but can give wrong solutions,
+                            // panic, or make the search fail to terminate.
                             let pdb = unsafe { ProjectionPdb::from_bytes_unchecked(bytes) };
 
                             ProjectionSolver::builder()
@@ -851,7 +867,7 @@ mod tests {
     #[test]
     fn projection_pdb_len_matches_built_pdb() {
         macro_rules! check {
-            ($w:literal, $h:literal, $target:expr, $metric:expr) => {{
+            ($w:literal, $h:literal, $target:expr, $metric:ident) => {{
                 let size = Size::new($w, $h).unwrap();
                 let solver = ProjectionSolver::<Puzzle, _, _, _>::builder()
                     .size(size)
@@ -863,11 +879,12 @@ mod tests {
 
                 assert_eq!(
                     Some(solver.pdb().as_ref().len()),
-                    projection_pdb_len(&$target, size),
-                    "{}x{} {}",
+                    projection_pdb_len(&$target, size, Metric::$metric),
+                    "{}x{} {} {}",
                     $w,
                     $h,
                     stringify!($target),
+                    stringify!($metric),
                 );
             }};
         }
@@ -890,13 +907,23 @@ mod tests {
 
         // Label counts (7, 3, 2, 2, 1) plus the gap: 16! / (7! 3! 2! 2! 1! 1!).
         assert_eq!(
-            projection_pdb_len(&SplitFringePruneTarget4x4, size),
+            projection_num_states(&SplitFringePruneTarget4x4, size),
             Some(172_972_800)
         );
         // Label counts (1, 2, 7, 3, 2) plus the gap: the same multinomial.
         assert_eq!(
-            projection_pdb_len(&DiagonalsPruneTarget4x4, size),
+            projection_num_states(&DiagonalsPruneTarget4x4, size),
             Some(172_972_800)
+        );
+
+        // 1 bit per state for STM, 2 bits for MTM.
+        assert_eq!(
+            projection_pdb_len(&SplitFringePruneTarget4x4, size, Metric::Stm),
+            Some(21_621_600)
+        );
+        assert_eq!(
+            projection_pdb_len(&DiagonalsPruneTarget4x4, size, Metric::Mtm),
+            Some(43_243_200)
         );
     }
 
