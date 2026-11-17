@@ -8,7 +8,7 @@ use clap::CommandFactory as _;
 use clap_complete::aot::{self, Shell};
 use rand::{rngs::Xoshiro256PlusPlus, Rng, SeedableRng as _};
 use slidy::{
-    algorithm::algorithm::Algorithm,
+    algorithm::{algorithm::Algorithm, r#move::r#move::Move},
     puzzle::{
         color_scheme::{ColorScheme, Scheme},
         label::label::RowGrids,
@@ -54,6 +54,10 @@ pub struct Runner {
     /// Whether to print progress while the solver builds pattern databases.
     show_pdb_build: bool,
 
+    /// Whether `apply --trace` has printed a trace yet, so that the next one is preceded by a
+    /// blank line.
+    traced: bool,
+
     /// Where command output goes. Buffered unless stdout is a terminal, so that large streams
     /// don't cost a `write` syscall per line.
     out: Box<dyn Write>,
@@ -73,6 +77,7 @@ impl Runner {
         Self {
             solver: None,
             show_pdb_build: false,
+            traced: false,
             out,
         }
     }
@@ -90,6 +95,35 @@ impl Runner {
         } else {
             Err("failed to apply algorithm")?
         }
+    }
+
+    /// Prints `state`, then applies the moves of `alg` (counted in `metric`) one at a time,
+    /// printing the state after each. If a move can't be made, the states before it have already
+    /// been printed.
+    fn apply_traced(&mut self, state: &mut Puzzle, alg: &Algorithm, metric: Metric) -> Result {
+        if self.traced {
+            writeln!(self.out)?;
+        }
+        self.traced = true;
+
+        writeln!(self.out, "{state}")?;
+
+        let moves: Box<dyn Iterator<Item = Move>> = match metric {
+            Metric::Stm => Box::new(alg.moves_stm().map(|dir| Move::new(dir, 1))),
+            Metric::Mtm => Box::new(alg.moves_mtm()),
+        };
+
+        for (i, mv) in moves.enumerate() {
+            if !state.try_apply_move(mv) {
+                Err(format!(
+                    "failed to apply algorithm: move {} ({mv}) can't be made",
+                    i + 1
+                ))?;
+            }
+            writeln!(self.out, "{state}")?;
+        }
+
+        Ok(())
     }
 
     fn apply_to_solved(&mut self, alg: &Algorithm, size: Size) -> Result {
@@ -448,12 +482,27 @@ impl Runner {
             .is_some_and(|pdb| pdb.show_pdb_build);
 
         match args.command {
-            Command::Apply { state, alg } => match (state, alg) {
-                (None, None) => unreachable!(),
-                (None, Some(alg)) => loop_fn(|s| self.apply(s, &alg)),
-                (Some(state), None) => loop_fn(|a| self.apply(&mut state.clone(), a)),
-                (Some(mut state), Some(alg)) => self.apply(&mut state, &alg),
-            },
+            Command::Apply {
+                state,
+                alg,
+                trace,
+                metric,
+            } => {
+                let mut apply = |state: &mut Puzzle, alg: &Algorithm| {
+                    if trace {
+                        self.apply_traced(state, alg, metric)
+                    } else {
+                        self.apply(state, alg)
+                    }
+                };
+
+                match (state, alg) {
+                    (None, None) => unreachable!(),
+                    (None, Some(alg)) => loop_fn(|s| apply(s, &alg)),
+                    (Some(state), None) => loop_fn(|a| apply(&mut state.clone(), a)),
+                    (Some(mut state), Some(alg)) => apply(&mut state, &alg),
+                }
+            }
             Command::ApplyToSolved { alg, size } => {
                 try_fallible_fn(|a| self.apply_to_solved(a, size), alg)
             }
@@ -627,7 +676,7 @@ impl Runner {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr as _;
+    use std::{cell::RefCell, rc::Rc, str::FromStr as _};
 
     use clap::Parser as _;
 
@@ -637,8 +686,110 @@ mod tests {
         Runner {
             solver: Some(Solver::with_pdb_dir(None, false)),
             show_pdb_build: false,
+            traced: false,
             out: Box::new(io::sink()),
         }
+    }
+
+    /// An output buffer that can be read after a [`Runner`] has written to it.
+    #[derive(Clone, Default)]
+    struct SharedBuf(Rc<RefCell<Vec<u8>>>);
+
+    impl Write for SharedBuf {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            self.0.borrow_mut().write(buf)
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl SharedBuf {
+        fn lines(&self) -> Vec<String> {
+            String::from_utf8(self.0.borrow().clone())
+                .unwrap()
+                .lines()
+                .map(str::to_owned)
+                .collect()
+        }
+    }
+
+    /// A [`Runner`] whose output can be read from the returned buffer.
+    fn capturing_runner() -> (Runner, SharedBuf) {
+        let buf = SharedBuf::default();
+        let runner = Runner {
+            out: Box::new(buf.clone()),
+            ..runner()
+        };
+        (runner, buf)
+    }
+
+    fn trace(state: &str, alg: &str, metric: Metric) -> (Result, Vec<String>) {
+        let (mut runner, buf) = capturing_runner();
+        let mut state = Puzzle::from_str(state).unwrap();
+        let alg = Algorithm::from_str(alg).unwrap();
+        let result = runner.apply_traced(&mut state, &alg, metric);
+        (result, buf.lines())
+    }
+
+    #[test]
+    fn apply_trace_prints_every_move() {
+        let (result, lines) = trace("1 2 3/4 5 6/7 8 0", "D2R", Metric::Stm);
+        result.unwrap();
+        assert_eq!(
+            lines,
+            [
+                "1 2 3/4 5 6/7 8 0",
+                "1 2 3/4 5 0/7 8 6",
+                "1 2 0/4 5 3/7 8 6",
+                "1 0 2/4 5 3/7 8 6",
+            ]
+        );
+
+        // In MTM, D2 is one move.
+        let (result, lines) = trace("1 2 3/4 5 6/7 8 0", "D2R", Metric::Mtm);
+        result.unwrap();
+        assert_eq!(
+            lines,
+            [
+                "1 2 3/4 5 6/7 8 0",
+                "1 2 0/4 5 3/7 8 6",
+                "1 0 2/4 5 3/7 8 6",
+            ]
+        );
+
+        let (result, lines) = trace("1 2 3/4 5 6/7 8 0", "", Metric::Stm);
+        result.unwrap();
+        assert_eq!(lines, ["1 2 3/4 5 6/7 8 0"]);
+    }
+
+    #[test]
+    fn apply_trace_stops_at_the_first_impossible_move() {
+        // The third D would move the gap off the top of the puzzle.
+        let (result, lines) = trace("1 2 3/4 5 6/7 8 0", "D3", Metric::Stm);
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("move 3 (D)"), "{err}");
+        assert_eq!(lines.len(), 3, "{lines:?}");
+
+        let (result, lines) = trace("1 2 3/4 5 6/7 8 0", "D3", Metric::Mtm);
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("move 1 (D3)"), "{err}");
+        assert_eq!(lines, ["1 2 3/4 5 6/7 8 0"]);
+    }
+
+    #[test]
+    fn apply_traces_are_separated_by_blank_lines() {
+        let (mut runner, buf) = capturing_runner();
+        for alg in ["D", "R"] {
+            let mut state = Puzzle::from_str("1 2/3 0").unwrap();
+            let alg = Algorithm::from_str(alg).unwrap();
+            runner.apply_traced(&mut state, &alg, Metric::Stm).unwrap();
+        }
+        assert_eq!(
+            buf.lines(),
+            ["1 2/3 0", "1 0/3 2", "", "1 2/3 0", "1 2/0 3"]
+        );
     }
 
     fn parse_args(args: &[&str]) -> core::result::Result<Args, clap::Error> {
@@ -663,6 +814,12 @@ mod tests {
         assert!(args.command.pdb_options().unwrap().show_pdb_build);
 
         assert!(parse_args(&["format", "--show-pdb-build"]).is_err());
+    }
+
+    #[test]
+    fn cli_apply_trace() {
+        assert!(parse_args(&["apply", "-a", "R", "--trace", "--metric", "mtm"]).is_ok());
+        assert!(parse_args(&["apply", "-a", "R", "--metric", "mtm"]).is_err());
     }
 
     /// Applies `alg` to a large puzzle with the gap in the middle, so that any short algorithm can
