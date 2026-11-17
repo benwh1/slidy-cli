@@ -51,6 +51,9 @@ pub struct Runner {
     /// cache.
     solver: Option<Solver>,
 
+    /// Whether to print progress while the solver builds pattern databases.
+    show_pdb_build: bool,
+
     /// Where command output goes. Buffered unless stdout is a terminal, so that large streams
     /// don't cost a `write` syscall per line.
     out: Box<dyn Write>,
@@ -67,11 +70,17 @@ impl Runner {
             Box::new(BufWriter::new(stdout))
         };
 
-        Self { solver: None, out }
+        Self {
+            solver: None,
+            show_pdb_build: false,
+            out,
+        }
     }
 
     fn solver(&mut self) -> &mut Solver {
-        self.solver.get_or_insert_with(Solver::new)
+        let show_pdb_build = self.show_pdb_build;
+        self.solver
+            .get_or_insert_with(|| Solver::new(show_pdb_build))
     }
 
     fn apply(&mut self, state: &mut Puzzle, alg: &Algorithm) -> Result {
@@ -433,6 +442,11 @@ impl Runner {
     }
 
     fn run_command(&mut self, args: Args) -> Result {
+        self.show_pdb_build = args
+            .command
+            .pdb_options()
+            .is_some_and(|pdb| pdb.show_pdb_build);
+
         match args.command {
             Command::Apply { state, alg } => match (state, alg) {
                 (None, None) => unreachable!(),
@@ -471,6 +485,7 @@ impl Runner {
                 size,
                 metric,
                 keep_suboptimal,
+                ..
             } => try_fallible_fn(
                 |a| self.filter_optimal(a, size, metric, keep_suboptimal),
                 alg,
@@ -526,13 +541,14 @@ impl Runner {
             Command::Invert { alg } => try_fallible_fn(|a| self.invert(a), alg),
             Command::Length { alg, metric } => try_fallible_fn(|a| self.length(a, metric), alg),
             Command::Md { state } => try_fallible_fn(|s| self.md(s), state),
-            Command::OptDiff { alg, size, metric } => {
-                try_fallible_fn(|a| self.opt_diff(a, metric, size), alg)
-            }
+            Command::OptDiff {
+                alg, size, metric, ..
+            } => try_fallible_fn(|a| self.opt_diff(a, metric, size), alg),
             Command::Optimize {
                 alg,
                 metric,
                 length,
+                ..
             } => try_fallible_fn(|a| self.optimize(a, metric, length), alg),
             Command::PieceAt { state, position } => {
                 try_fallible_fn(|s| self.piece_at(s, position), state)
@@ -613,13 +629,40 @@ impl Runner {
 mod tests {
     use std::str::FromStr as _;
 
+    use clap::Parser as _;
+
     use super::*;
 
     fn runner() -> Runner {
         Runner {
-            solver: Some(Solver::with_pdb_dir(None)),
+            solver: Some(Solver::with_pdb_dir(None, false)),
+            show_pdb_build: false,
             out: Box::new(io::sink()),
         }
+    }
+
+    fn parse_args(args: &[&str]) -> core::result::Result<Args, clap::Error> {
+        Args::try_parse_from([&["slidy"], args].concat())
+    }
+
+    #[test]
+    fn cli_show_pdb_build() {
+        for command in ["solve", "filter-optimal", "opt-diff"] {
+            let args = parse_args(&[command, "--show-pdb-build"]).unwrap();
+            assert!(
+                args.command.pdb_options().unwrap().show_pdb_build,
+                "{command}"
+            );
+            let args = parse_args(&[command]).unwrap();
+            assert!(
+                !args.command.pdb_options().unwrap().show_pdb_build,
+                "{command}"
+            );
+        }
+        let args = parse_args(&["optimize", "-l", "4", "--show-pdb-build"]).unwrap();
+        assert!(args.command.pdb_options().unwrap().show_pdb_build);
+
+        assert!(parse_args(&["format", "--show-pdb-build"]).is_err());
     }
 
     /// Applies `alg` to a large puzzle with the gap in the middle, so that any short algorithm can

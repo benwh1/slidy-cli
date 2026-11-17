@@ -86,6 +86,9 @@ pub enum Command {
         /// Keep only the suboptimal solutions instead.
         #[clap(short, long)]
         keep_suboptimal: bool,
+
+        #[clap(flatten)]
+        pdb: PdbOptions,
     },
 
     #[clap(about = "Filters out unsolvable puzzle states")]
@@ -203,6 +206,9 @@ pub enum Command {
         /// Metric to measure lengths in.
         #[clap(short, long, value_enum, default_value_t = Metric::Stm)]
         metric: Metric,
+
+        #[clap(flatten)]
+        pdb: PdbOptions,
     },
 
     #[clap(
@@ -221,6 +227,9 @@ pub enum Command {
         /// Metric to measure lengths in.
         #[clap(short, long, value_enum, default_value_t = Metric::Stm)]
         metric: Metric,
+
+        #[clap(flatten)]
+        pdb: PdbOptions,
     },
 
     #[clap(about = "Prints the piece in a given position in a puzzle state")]
@@ -342,6 +351,9 @@ pub enum Command {
         /// Also print the length of each solution to stderr.
         #[clap(short, long)]
         verbose: bool,
+
+        #[clap(flatten)]
+        pdb: PdbOptions,
     },
 
     #[clap(about = "Prints the solved state")]
@@ -355,6 +367,48 @@ pub enum Command {
         /// Algorithm to transpose. If omitted, algorithms are read from stdin, one per line.
         alg: Option<Algorithm>,
     },
+}
+
+impl Command {
+    /// The pattern database options of the commands that solve puzzles.
+    pub const fn pdb_options(&self) -> Option<&PdbOptions> {
+        match self {
+            Self::FilterOptimal { pdb, .. }
+            | Self::OptDiff { pdb, .. }
+            | Self::Optimize { pdb, .. }
+            | Self::Solve { pdb, .. } => Some(pdb),
+            Self::Apply { .. }
+            | Self::ApplyToSolved { .. }
+            | Self::Completions { .. }
+            | Self::Concat { .. }
+            | Self::Embed { .. }
+            | Self::FilterSolvable { .. }
+            | Self::Format { .. }
+            | Self::FormatState { .. }
+            | Self::FromSolution { .. }
+            | Self::Generate { .. }
+            | Self::Invert { .. }
+            | Self::Length { .. }
+            | Self::Md { .. }
+            | Self::PieceAt { .. }
+            | Self::PiecePosition { .. }
+            | Self::Render { .. }
+            | Self::Simplify { .. }
+            | Self::Slice { .. }
+            | Self::Solvable { .. }
+            | Self::SolvedState { .. }
+            | Self::Transpose { .. } => None,
+        }
+    }
+}
+
+/// Options for the pattern databases (PDBs) used by the solvers.
+#[derive(clap::Args, Debug)]
+pub struct PdbOptions {
+    /// Print progress to stderr while building pattern databases. They are built the first time
+    /// a puzzle size, metric and label is solved, then cached.
+    #[clap(long)]
+    pub show_pdb_build: bool,
 }
 
 #[derive(clap::Args, Debug)]

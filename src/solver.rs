@@ -332,7 +332,13 @@ fn save_pdb(pdb_file_path: Option<&Path>, bytes: &[u8]) {
     }
 }
 
-fn pdb_config() -> PdbConfig {
+/// The config PDBs are built with. With `show_build`, a line of statistics is printed to stderr
+/// after each depth of the build; otherwise PDBs are built silently.
+fn pdb_config(show_build: bool) -> PdbConfig {
+    if !show_build {
+        return PdbConfig::default();
+    }
+
     PdbConfig {
         end_of_iter_callback: Some(Box::new(|s: PdbIterationStats| {
             eprintln!("depth {} new {} total {}", s.depth, s.new, s.total);
@@ -354,19 +360,21 @@ pub struct Solver {
 
 impl Solver {
     /// Creates a solver that caches PDBs in the user's cache directory, first deleting the caches
-    /// of older versions if this version hasn't used the cache yet.
-    pub fn new() -> Self {
+    /// of older versions if this version hasn't used the cache yet. With `show_pdb_build`,
+    /// progress is printed to stderr while PDBs are built.
+    pub fn new(show_pdb_build: bool) -> Self {
         let cache_root = cache_root();
         if let Some(cache_root) = &cache_root {
             remove_old_caches(cache_root);
         }
 
-        Self::with_pdb_dir(cache_root.map(|r| pdb_dir(&r)).as_deref())
+        Self::with_pdb_dir(cache_root.map(|r| pdb_dir(&r)).as_deref(), show_pdb_build)
     }
 
     /// Creates a solver that caches PDBs in `pdb_dir`, or doesn't cache them at all if `pdb_dir`
-    /// is `None`. The directory is only created when a PDB is first saved.
-    pub fn with_pdb_dir(pdb_dir: Option<&Path>) -> Self {
+    /// is `None`. The directory is only created when a PDB is first saved. With `show_pdb_build`,
+    /// progress is printed to stderr while PDBs are built.
+    pub fn with_pdb_dir(pdb_dir: Option<&Path>, show_pdb_build: bool) -> Self {
         let mut this = Self {
             solvers: HashMap::new(),
             remaps: Vec::new(),
@@ -390,7 +398,7 @@ impl Solver {
                             unsafe { PdbTy::try_from_bytes(bytes) }
                         })
                         .unwrap_or_else(|| {
-                            let pdb = PdbTy::new(&pdb_config());
+                            let pdb = PdbTy::new(&pdb_config(show_pdb_build));
 
                             let bytes = pdb.as_ref();
                             save_pdb(pdb_file_path.as_deref(), bytes);
@@ -477,7 +485,7 @@ impl Solver {
                     unsafe { Solver4x4Mtm::try_with_pdb_bytes(bytes) }
                 })
                 .unwrap_or_else(|| {
-                    let solver = Solver4x4Mtm::new(&pdb_config());
+                    let solver = Solver4x4Mtm::new(&pdb_config(show_pdb_build));
 
                     let bytes = solver.pdb().as_ref();
                     save_pdb(pdb_file_path_4x4_mtm.as_deref(), bytes);
@@ -535,7 +543,7 @@ impl Solver {
                                 .target($target)
                                 .prune_target($prune_target)
                                 .metric($metric)
-                                .pdb_config(pdb_config())
+                                .pdb_config(pdb_config(show_pdb_build))
                                 .build()
                                 .unwrap();
 
@@ -1072,7 +1080,7 @@ mod tests {
     #[test]
     fn registered_pdb_files_are_not_shared_between_formats() {
         // Registering every solver runs the `PdbPaths` checks without building any PDBs.
-        let _ = Solver::with_pdb_dir(None);
+        let _ = Solver::with_pdb_dir(None, false);
     }
 
     #[test]
@@ -1155,6 +1163,12 @@ mod tests {
     }
 
     #[test]
+    fn pdb_builds_are_silent_unless_shown() {
+        assert!(pdb_config(false).end_of_iter_callback.is_none());
+        assert!(pdb_config(true).end_of_iter_callback.is_some());
+    }
+
+    #[test]
     fn pdb_write_replaces_atomically() {
         let dir =
             std::env::temp_dir().join(format!("slidy-cli-test-pdb-write-{}", std::process::id()));
@@ -1215,7 +1229,7 @@ mod tests {
 
     #[test]
     fn transposed_small_sizes_share_a_solver() {
-        let mut solver = Solver::with_pdb_dir(None);
+        let mut solver = Solver::with_pdb_dir(None, false);
         let key = |w, h, metric| SolverKey {
             size: Size::new(w, h).unwrap(),
             label: LabelType::RowGrids,
