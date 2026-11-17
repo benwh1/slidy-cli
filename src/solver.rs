@@ -1013,10 +1013,8 @@ mod tests {
 
     #[test]
     fn pdb_files_record_content_size_and_checksum() {
-        let dir = std::env::temp_dir().join(format!(
-            "slidy-cli-test-pdb-frame-{}",
-            std::process::id()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("slidy-cli-test-pdb-frame-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let path = dir.join("test.pdb.zst");
 
