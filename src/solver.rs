@@ -43,17 +43,100 @@ type BoxSolverInit = Box<dyn FnOnce() -> BoxSolver>;
 
 type Remap = Box<dyn Fn(SolverKey) -> Option<SolverKey>>;
 
-/// The directory PDBs are cached in, or `None` if the platform has no cache directory (e.g. no
-/// home directory could be determined). The directory is versioned by [`SOLVER_VERSION`].
-fn default_pdb_dir() -> Option<PathBuf> {
-    let mut dir = ProjectDirs::from("", "", "slidy-cli")?
-        .cache_dir()
-        .to_path_buf();
-    dir.push(format!("v{SOLVER_VERSION}"));
-    dir.push("solver");
-    dir.push("pdb");
+/// The directory that holds every version of the cache, e.g. `~/.cache/slidy-cli`, or `None` if
+/// the platform has no cache directory (e.g. no home directory could be determined).
+fn cache_root() -> Option<PathBuf> {
+    Some(
+        ProjectDirs::from("", "", "slidy-cli")?
+            .cache_dir()
+            .to_path_buf(),
+    )
+}
 
-    Some(dir)
+/// The name of the directory in the cache root for the cache of `SOLVER_VERSION` `version`.
+fn version_dir_name(version: &str) -> String {
+    format!("v{version}")
+}
+
+/// The directory PDBs are cached in, under the cache root. It is versioned by [`SOLVER_VERSION`].
+fn pdb_dir(cache_root: &Path) -> PathBuf {
+    cache_root
+        .join(version_dir_name(SOLVER_VERSION))
+        .join("solver")
+        .join("pdb")
+}
+
+/// Parses a version like `0.6` into its numeric components, so that versions compare numerically
+/// (`0.10` is newer than `0.6`).
+fn parse_version(version: &str) -> Option<Vec<u64>> {
+    version.split('.').map(|part| part.parse().ok()).collect()
+}
+
+/// The caches in `cache_root` left behind by versions older than `current_version`, which nothing
+/// reads any more:
+///
+/// - `v<version>` directories for older versions. Newer versions are kept, in case a newer
+///   slidy-cli is also in use.
+/// - `solver`, where versions up to 0.5 cached PDBs before the cache was versioned.
+///
+/// Only real directories are returned: symlinks and anything with an unrecognized name are left
+/// alone.
+fn old_cache_dirs(cache_root: &Path, current_version: &str) -> Vec<PathBuf> {
+    let Some(current) = parse_version(current_version) else {
+        return Vec::new();
+    };
+    let Ok(entries) = std::fs::read_dir(cache_root) else {
+        return Vec::new();
+    };
+
+    let mut dirs: Vec<PathBuf> = entries
+        .filter_map(Result::ok)
+        // `DirEntry::file_type` doesn't follow symlinks.
+        .filter(|entry| entry.file_type().is_ok_and(|t| t.is_dir()))
+        .filter(|entry| {
+            let name = entry.file_name();
+            let Some(name) = name.to_str() else {
+                return false;
+            };
+
+            name == "solver"
+                || name
+                    .strip_prefix('v')
+                    .and_then(parse_version)
+                    .is_some_and(|version| version < current)
+        })
+        .map(|entry| entry.path())
+        .collect();
+    dirs.sort();
+
+    dirs
+}
+
+/// Deletes the caches of older versions (see [`old_cache_dirs`]) the first time this version
+/// uses the cache, i.e. while its own cache directory doesn't exist yet. Checking only then means
+/// that a cache recreated by running an older slidy-cli afterwards is left alone.
+fn remove_old_caches(cache_root: &Path) {
+    if cache_root
+        .join(version_dir_name(SOLVER_VERSION))
+        .try_exists()
+        .unwrap_or(true)
+    {
+        return;
+    }
+
+    for dir in old_cache_dirs(cache_root, SOLVER_VERSION) {
+        match std::fs::remove_dir_all(&dir) {
+            Ok(()) => eprintln!(
+                "note: removed the pattern database cache of an older version of slidy-cli: {}",
+                dir.display()
+            ),
+            Err(e) => eprintln!(
+                "warning: failed to remove the pattern database cache of an older version of \
+                slidy-cli at {}: {e}",
+                dir.display()
+            ),
+        }
+    }
 }
 
 /// The move set PDBs are built for. Only the standard moves exist for now, but it is part of the
@@ -270,9 +353,15 @@ pub struct Solver {
 }
 
 impl Solver {
-    /// Creates a solver that caches PDBs in the user's cache directory.
+    /// Creates a solver that caches PDBs in the user's cache directory, first deleting the caches
+    /// of older versions if this version hasn't used the cache yet.
     pub fn new() -> Self {
-        Self::with_pdb_dir(default_pdb_dir().as_deref())
+        let cache_root = cache_root();
+        if let Some(cache_root) = &cache_root {
+            remove_old_caches(cache_root);
+        }
+
+        Self::with_pdb_dir(cache_root.map(|r| pdb_dir(&r)).as_deref())
     }
 
     /// Creates a solver that caches PDBs in `pdb_dir`, or doesn't cache them at all if `pdb_dir`
@@ -984,6 +1073,85 @@ mod tests {
     fn registered_pdb_files_are_not_shared_between_formats() {
         // Registering every solver runs the `PdbPaths` checks without building any PDBs.
         let _ = Solver::with_pdb_dir(None);
+    }
+
+    #[test]
+    fn versions_compare_numerically() {
+        assert_eq!(parse_version("0.6"), Some(vec![0, 6]));
+        assert!(parse_version("0.6") < parse_version("0.10"));
+        assert!(parse_version("0.6") < parse_version("0.6.1"));
+        assert!(parse_version("0.9.9") < parse_version("1.0"));
+
+        for invalid in ["", "0.", ".6", "0.x", "-1", "0.6-beta"] {
+            assert_eq!(parse_version(invalid), None, "{invalid}");
+        }
+    }
+
+    /// A temporary cache root for a test, emptied first.
+    fn test_cache_root(name: &str) -> PathBuf {
+        let root =
+            std::env::temp_dir().join(format!("slidy-cli-test-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        root
+    }
+
+    #[test]
+    fn old_cache_dirs_are_older_versions_and_the_unversioned_cache() {
+        let root = test_cache_root("old-caches");
+        for dir in [
+            "v0.5", "v0.5.1", "v0.6", "v0.10", "v1.0", "solver", "vfoo", "v", "other",
+        ] {
+            std::fs::create_dir(root.join(dir)).unwrap();
+        }
+        // Files and symlinks are never removed, even with a matching name.
+        std::fs::write(root.join("v0.4"), "").unwrap();
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(root.join("other"), root.join("v0.3")).unwrap();
+
+        assert_eq!(
+            old_cache_dirs(&root, "0.6"),
+            [root.join("solver"), root.join("v0.5"), root.join("v0.5.1")]
+        );
+        assert_eq!(
+            old_cache_dirs(&root, "0.10"),
+            [
+                root.join("solver"),
+                root.join("v0.5"),
+                root.join("v0.5.1"),
+                root.join("v0.6"),
+            ]
+        );
+        assert!(old_cache_dirs(&root.join("missing"), "0.6").is_empty());
+
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn old_caches_are_removed_only_before_this_version_uses_the_cache() {
+        let root = test_cache_root("remove-caches");
+        let current = root.join(version_dir_name(SOLVER_VERSION));
+        let old = root.join("v0.0").join("solver").join("pdb");
+        let unversioned = root.join("solver").join("pdb");
+        let newer = root.join("v999.0");
+        for dir in [&old, &unversioned, &newer] {
+            std::fs::create_dir_all(dir).unwrap();
+            std::fs::write(dir.join("test.pdb.zst"), "data").unwrap();
+        }
+
+        remove_old_caches(&root);
+        assert!(!root.join("v0.0").exists());
+        assert!(!root.join("solver").exists());
+        assert!(newer.exists());
+
+        // Once this version's cache exists, a cache recreated by an older version is left alone.
+        std::fs::create_dir_all(&current).unwrap();
+        std::fs::create_dir_all(&old).unwrap();
+        remove_old_caches(&root);
+        assert!(old.exists());
+        assert!(current.exists());
+
+        std::fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]
