@@ -217,9 +217,13 @@ fn write_compressed_file(path: &Path, bytes: &[u8]) -> io::Result<()> {
     let file = File::create(path)?;
     let writer = BufWriter::new(file);
 
+    // The frame records a checksum of the contents, which `zstd::decode_all` verifies, and the
+    // content size. A streaming encoder only knows the size if it is pledged up front;
+    // `include_contentsize` alone writes nothing.
     let mut encoder = Encoder::new(writer, 0)?;
     encoder.include_checksum(true)?;
     encoder.include_contentsize(true)?;
+    encoder.set_pledged_src_size(Some(bytes.len() as u64))?;
     encoder.write_all(bytes)?;
 
     let file = encoder
@@ -1003,6 +1007,42 @@ mod tests {
         std::fs::create_dir_all(blocked.join("non-empty")).unwrap();
         assert!(write_compressed_pdb(&blocked, b"data").is_err());
         assert_eq!(files(), 2, "temporary file left behind");
+
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn pdb_files_record_content_size_and_checksum() {
+        let dir = std::env::temp_dir().join(format!(
+            "slidy-cli-test-pdb-frame-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        let path = dir.join("test.pdb.zst");
+
+        // Large enough to span several zstd blocks.
+        let contents: Vec<u8> = (0..1_000_000u32).map(|i| (i * 7 % 251) as u8).collect();
+        write_compressed_pdb(&path, &contents).unwrap();
+        let mut file = std::fs::read(&path).unwrap();
+
+        assert_eq!(
+            zstd::zstd_safe::get_frame_content_size(&file).ok(),
+            Some(Some(contents.len() as u64))
+        );
+
+        // Bit 2 of the frame header descriptor, after the 4-byte magic number, is the content
+        // checksum flag.
+        assert_ne!(file[4] & 0b100, 0, "frame has no content checksum");
+
+        assert_eq!(
+            read_compressed_pdb(Some(&path)).as_deref(),
+            Some(contents.as_slice())
+        );
+
+        // The last 4 bytes of the frame are the checksum, so corrupting one fails the read.
+        *file.last_mut().unwrap() ^= 0xff;
+        std::fs::write(&path, &file).unwrap();
+        assert_eq!(read_compressed_pdb(Some(&path)), None);
 
         std::fs::remove_dir_all(&dir).unwrap();
     }
