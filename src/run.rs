@@ -224,13 +224,40 @@ impl Runner {
         }
     }
 
+    /// Generates `number` scrambles with `s`, using a seeded RNG if `seed` is given.
     fn generate(
+        &mut self,
+        number: u64,
+        size: Size,
+        s: &impl Scrambler,
+        seed: Option<u64>,
+    ) -> Result {
+        match seed {
+            Some(seed) => self.generate_with_rng(
+                number,
+                size,
+                s,
+                &mut Xoshiro256PlusPlus::seed_from_u64(seed),
+            ),
+            None => self.generate_with_rng(number, size, s, &mut rand::rng()),
+        }
+    }
+
+    fn generate_with_rng(
         &mut self,
         number: u64,
         size: Size,
         s: &impl Scrambler,
         rng: &mut impl Rng,
     ) -> Result {
+        // Scrambling a puzzle of the wrong size panics, e.g. random moves without backtracking on
+        // a 1xN puzzle.
+        if !s.is_valid_size(size) {
+            Err(format!(
+                "this kind of scramble can't be generated for a {size} puzzle"
+            ))?;
+        }
+
         let mut p = Puzzle::new(size);
 
         for _ in 0..number {
@@ -566,25 +593,9 @@ impl Runner {
                         allow_backtracking,
                         allow_illegal_moves,
                     };
-                    match seed {
-                        Some(seed) => self.generate(
-                            number,
-                            size,
-                            &scrambler,
-                            &mut Xoshiro256PlusPlus::seed_from_u64(seed),
-                        ),
-                        None => self.generate(number, size, &scrambler, &mut rand::rng()),
-                    }
+                    self.generate(number, size, &scrambler, seed)
                 } else {
-                    match seed {
-                        Some(seed) => self.generate(
-                            number,
-                            size,
-                            &RandomState,
-                            &mut Xoshiro256PlusPlus::seed_from_u64(seed),
-                        ),
-                        None => self.generate(number, size, &RandomState, &mut rand::rng()),
-                    }
+                    self.generate(number, size, &RandomState, seed)
                 }
             }
             Command::Invert { alg } => try_fallible_fn(|a| self.invert(a), alg),
@@ -790,6 +801,47 @@ mod tests {
             buf.lines(),
             ["1 2/3 0", "1 0/3 2", "", "1 2/3 0", "1 2/0 3"]
         );
+    }
+
+    fn generate(size: &str, scrambler: &impl Scrambler, seed: u64) -> (Result, Vec<Puzzle>) {
+        let (mut runner, buf) = capturing_runner();
+        let size = Size::from_str(size).unwrap();
+        let result = runner.generate(20, size, scrambler, Some(seed));
+        let states = buf
+            .lines()
+            .iter()
+            .map(|line| Puzzle::from_str(line).unwrap())
+            .collect();
+        (result, states)
+    }
+
+    #[test]
+    fn generate_rejects_sizes_the_scrambler_cannot_handle() {
+        // Without backtracking or illegal moves, random moves run out of moves on a 1xN puzzle,
+        // which used to panic.
+        let random_moves = RandomMoves {
+            moves: 5,
+            allow_backtracking: false,
+            allow_illegal_moves: false,
+        };
+        let (result, states) = generate("1x3", &random_moves, 0);
+        assert!(result.is_err());
+        assert!(states.is_empty());
+    }
+
+    #[test]
+    fn generate_scrambles_each_state_from_solved() {
+        // Each scramble is independent: one random move from solved, not from the last scramble.
+        let one_move = RandomMoves {
+            moves: 1,
+            allow_backtracking: false,
+            allow_illegal_moves: false,
+        };
+        let (result, states) = generate("4x4", &one_move, 3);
+        result.unwrap();
+        for state in &states {
+            assert_eq!(ManhattanDistance(RowGrids).bound(state), 1, "{state}");
+        }
     }
 
     fn parse_args(args: &[&str]) -> core::result::Result<Args, clap::Error> {
