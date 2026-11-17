@@ -14,7 +14,7 @@ use slidy::{
         label::label::RowGrids,
         puzzle::Puzzle,
         render::{Borders, RendererBuilder, Text},
-        scrambler::{RandomMoves, RandomState, Scrambler},
+        scrambler::{RandomInvertibleState, RandomMoves, RandomState, Scrambler},
         size::Size,
         sliding_puzzle::SlidingPuzzle as _,
     },
@@ -251,7 +251,7 @@ impl Runner {
         rng: &mut impl Rng,
     ) -> Result {
         // Scrambling a puzzle of the wrong size panics, e.g. random moves without backtracking on
-        // a 1xN puzzle.
+        // a 1xN puzzle, or an invertible state on a 1x1 puzzle.
         if !s.is_valid_size(size) {
             Err(format!(
                 "this kind of scramble can't be generated for a {size} puzzle"
@@ -583,6 +583,7 @@ impl Runner {
                 size,
                 seed,
                 random_moves,
+                invertible,
                 num_moves,
                 allow_backtracking,
                 allow_illegal_moves,
@@ -594,6 +595,8 @@ impl Runner {
                         allow_illegal_moves,
                     };
                     self.generate(number, size, &scrambler, seed)
+                } else if invertible {
+                    self.generate(number, size, &RandomInvertibleState, seed)
                 } else {
                     self.generate(number, size, &RandomState, seed)
                 }
@@ -816,6 +819,30 @@ mod tests {
     }
 
     #[test]
+    fn generate_invertible_keeps_the_gap_solved() {
+        for size in ["2x2", "3x2", "2x3", "4x4", "5x3"] {
+            let (result, states) = generate(size, &RandomInvertibleState, 7);
+            result.unwrap();
+            assert_eq!(states.len(), 20);
+
+            for state in &states {
+                assert!(state.is_solvable(), "{state}");
+                assert_eq!(state.gap_position(), state.num_pieces(), "{state}");
+            }
+
+            // Not every scramble of a 2x2 can be different from solved.
+            if size != "2x2" {
+                assert!(states.iter().any(|s| !s.is_solved()), "{size}");
+            }
+        }
+
+        // The gap can't stay put on a 1xN puzzle.
+        let (result, states) = generate("1x3", &RandomInvertibleState, 0);
+        assert!(result.is_err());
+        assert!(states.is_empty());
+    }
+
+    #[test]
     fn generate_rejects_sizes_the_scrambler_cannot_handle() {
         // Without backtracking or illegal moves, random moves run out of moves on a 1xN puzzle,
         // which used to panic.
@@ -872,6 +899,12 @@ mod tests {
     fn cli_apply_trace() {
         assert!(parse_args(&["apply", "-a", "R", "--trace", "--metric", "mtm"]).is_ok());
         assert!(parse_args(&["apply", "-a", "R", "--metric", "mtm"]).is_err());
+    }
+
+    #[test]
+    fn cli_generate_invertible() {
+        assert!(parse_args(&["generate", "--invertible"]).is_ok());
+        assert!(parse_args(&["generate", "--invertible", "--random-moves"]).is_err());
     }
 
     /// Applies `alg` to a large puzzle with the gap in the middle, so that any short algorithm can

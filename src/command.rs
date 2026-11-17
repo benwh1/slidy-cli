@@ -163,6 +163,11 @@ pub enum Command {
         #[clap(long)]
         random_moves: bool,
 
+        /// Pick a uniformly random solvable state with the gap in the bottom right corner, where
+        /// it is when solved. Such states are permutations of the pieces, so they can be inverted.
+        #[clap(long, conflicts_with = "random_moves")]
+        invertible: bool,
+
         /// Number of random moves to make (with --random-moves).
         #[clap(short = 'm', long, default_value_t = 80, requires = "random_moves")]
         num_moves: u64,
