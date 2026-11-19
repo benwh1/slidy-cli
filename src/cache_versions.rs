@@ -9,7 +9,8 @@
 /// Bump this to the upcoming release's version whenever a cached PDB could differ from what the
 /// current code would build or expect, for example when:
 ///
-/// - `slidy` changes how a PDB is built, encoded or indexed (see [`SLIDY_VERSION`]),
+/// - `slidy` changes how a PDB is built, encoded or indexed (it is pinned in `Cargo.toml`, so that
+///   upgrading it is a reminder to check),
 /// - a solver registration changes what a PDB contains without changing its file name, e.g. a
 ///   projection solver's prune target (file names only include the target),
 /// - the file naming, compression or layout of the cache changes.
@@ -17,42 +18,3 @@
 /// Projection PDBs are loaded without a hash check, so reusing a stale one is memory-safe (thanks
 /// to the length check) but can give wrong solutions, panic, or hang. When in doubt, bump.
 pub const SOLVER_VERSION: &str = "0.6";
-
-/// The `slidy` version that [`SOLVER_VERSION`] was last checked against.
-///
-/// A test compares this with `Cargo.lock`. When `slidy` is upgraded, the test fails until someone
-/// checks whether the new version changes any PDB format, bumps [`SOLVER_VERSION`] if it does, and
-/// then updates this constant. A `slidy` upgrade that doesn't affect PDBs therefore keeps the
-/// existing cache.
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "only read by the Cargo.lock check in the tests")
-)]
-pub const SLIDY_VERSION: &str = "0.10.0";
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn slidy_version_matches_cargo_lock() {
-        let lock = include_str!("../Cargo.lock");
-        let slidy_version = lock
-            .split("[[package]]")
-            .find(|package| package.contains("\nname = \"slidy\"\n"))
-            .and_then(|package| {
-                package
-                    .lines()
-                    .find_map(|line| line.strip_prefix("version = \""))
-                    .and_then(|v| v.strip_suffix('"'))
-            })
-            .expect("slidy is in Cargo.lock");
-
-        assert_eq!(
-            slidy_version, SLIDY_VERSION,
-            "slidy was upgraded. Check whether this changes any PDB format: if it does, bump \
-            SOLVER_VERSION to the upcoming release version. Then set SLIDY_VERSION to \
-            {slidy_version}."
-        );
-    }
-}

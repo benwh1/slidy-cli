@@ -15,7 +15,10 @@ clap_complete = "^4.6"
 directories = "^6"
 palette = "^0.7"
 rand = "^0.10"
-slidy = { path = "../slidy", features = ["palette"] }
+# Pinned exactly, so that upgrading slidy means editing this line. When you do, check whether the
+# new version changes how any PDB is built or stored, and if so bump SOLVER_VERSION in
+# src/cache_versions.rs.
+slidy = { version = "=0.11.0", features = ["palette"] }
 svg = "^0.18"
 zstd = "^0.14"
 
