@@ -5,7 +5,7 @@ use slidy::{
     puzzle::{puzzle::Puzzle, size::Size},
 };
 
-use crate::enums::{ColoringType, LabelType, Metric, StateFormatter};
+use crate::enums::{ColoringType, LabelType, Metric, Pdb4x4Stm, StateFormatter};
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
@@ -423,12 +423,18 @@ impl Command {
 }
 
 /// Options for the pattern databases (PDBs) used by the solvers.
-#[derive(clap::Args, Debug)]
+#[derive(clap::Args, Clone, Copy, Debug, Default)]
 pub struct PdbOptions {
     /// Print progress to stderr while building pattern databases. They are built the first time
     /// a puzzle size, metric and label is solved, then cached.
     #[clap(long)]
     pub show_pdb_build: bool,
+
+    /// The solver for 4x4 puzzles in STM (with the default label, row-grids), named by the size
+    /// of its pattern database. Bigger ones solve faster, but take more memory and disk space,
+    /// and longer to build the first time. Other puzzles are unaffected.
+    #[clap(long, value_enum, default_value_t = Pdb4x4Stm::Medium)]
+    pub solver: Pdb4x4Stm,
 }
 
 #[derive(clap::Args, Debug)]

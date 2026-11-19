@@ -28,7 +28,7 @@ use slidy::{
 use crate::{
     algorithm_ext::AlgorithmExt as _,
     args::Args,
-    command::{Command, RenderOptions},
+    command::{Command, PdbOptions, RenderOptions},
     enums::{LabelType, Metric, StateFormatter},
     solver::{Solver, SolverContext},
     util::{loop_fn, try_fallible_fn, try_fallible_fn_once},
@@ -51,8 +51,9 @@ pub struct Runner {
     /// cache.
     solver: Option<Solver>,
 
-    /// Whether to print progress while the solver builds pattern databases.
-    show_pdb_build: bool,
+    /// The options the solver is created with: which 4x4 STM solver to use, and whether to print
+    /// progress while building pattern databases.
+    pdb_options: PdbOptions,
 
     /// Whether `apply --trace` has printed a trace yet, so that the next one is preceded by a
     /// blank line.
@@ -76,16 +77,15 @@ impl Runner {
 
         Self {
             solver: None,
-            show_pdb_build: false,
+            pdb_options: PdbOptions::default(),
             traced: false,
             out,
         }
     }
 
     fn solver(&mut self) -> &mut Solver {
-        let show_pdb_build = self.show_pdb_build;
-        self.solver
-            .get_or_insert_with(|| Solver::new(show_pdb_build))
+        let pdb_options = self.pdb_options;
+        self.solver.get_or_insert_with(|| Solver::new(pdb_options))
     }
 
     fn apply(&mut self, state: &mut Puzzle, alg: &Algorithm) -> Result {
@@ -503,10 +503,7 @@ impl Runner {
     }
 
     fn run_command(&mut self, args: Args) -> Result {
-        self.show_pdb_build = args
-            .command
-            .pdb_options()
-            .is_some_and(|pdb| pdb.show_pdb_build);
+        self.pdb_options = args.command.pdb_options().copied().unwrap_or_default();
 
         match args.command {
             Command::Apply { state, alg, trace } => {
@@ -687,11 +684,12 @@ mod tests {
     use clap::Parser as _;
 
     use super::*;
+    use crate::enums::Pdb4x4Stm;
 
     fn runner() -> Runner {
         Runner {
-            solver: Some(Solver::with_pdb_dir(None, false)),
-            show_pdb_build: false,
+            solver: Some(Solver::with_pdb_dir(None, PdbOptions::default())),
+            pdb_options: PdbOptions::default(),
             traced: false,
             out: Box::new(io::sink()),
         }
@@ -865,6 +863,38 @@ mod tests {
 
     fn parse_args(args: &[&str]) -> core::result::Result<Args, clap::Error> {
         Args::try_parse_from([&["slidy"], args].concat())
+    }
+
+    #[test]
+    fn cli_solver() {
+        let solver = |args: &[&str]| {
+            parse_args(args)
+                .unwrap()
+                .command
+                .pdb_options()
+                .unwrap()
+                .solver
+        };
+
+        for command in ["solve", "filter-optimal", "opt-diff"] {
+            assert_eq!(solver(&[command]), Pdb4x4Stm::Medium, "{command}");
+            assert_eq!(
+                solver(&[command, "--solver", "large"]),
+                Pdb4x4Stm::Large,
+                "{command}"
+            );
+        }
+        assert_eq!(
+            solver(&["optimize", "-l", "4", "--solver", "small"]),
+            Pdb4x4Stm::Small
+        );
+        assert_eq!(
+            solver(&["opt-diff", "-s", "4x4", "--solver", "huge"]),
+            Pdb4x4Stm::Huge
+        );
+
+        assert!(parse_args(&["solve", "--solver", "tiny"]).is_err());
+        assert!(parse_args(&["format", "--solver", "small"]).is_err());
     }
 
     #[test]

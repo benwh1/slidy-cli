@@ -15,7 +15,7 @@ clap_complete = "^4.6"
 directories = "^6"
 palette = "^0.7"
 rand = "^0.10"
-slidy = { version = "^0.10", features = ["palette"] }
+slidy = { path = "../slidy", features = ["palette"] }
 svg = "^0.18"
 zstd = "^0.14"
 

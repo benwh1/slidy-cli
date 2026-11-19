@@ -27,14 +27,18 @@ use slidy::{
         projection::{pdb::Pdb as ProjectionPdb, solver::Solver as ProjectionSolver},
         solver::{Solver as SolverT, SolverError},
         statistics::PdbIterationStats,
-        Solver4x4Mtm, Solver4x4Stm,
+        Solver4x4Mtm, Solver4x4StmLarge, Solver4x4StmMedium, Solver4x4StmSmall,
     },
 };
+
+#[cfg(target_pointer_width = "64")]
+use slidy::solver::Solver4x4StmHuge;
 use zstd::Encoder;
 
 use crate::{
     cache_versions::SOLVER_VERSION,
-    enums::{LabelType, Metric},
+    command::PdbOptions,
+    enums::{LabelType, Metric, Pdb4x4Stm},
     solver::projections::{DiagonalsPruneTarget4x4, SplitFringePruneTarget4x4},
 };
 
@@ -144,17 +148,19 @@ fn remove_old_caches(cache_root: &Path) {
 const MOVE_SET: &str = "standard";
 
 /// The file name of a cached PDB, `<width>x<height>-<metric>-<solved state>-<move set>.pdb.zst`,
-/// e.g. `4x4-stm-fringe-standard.pdb.zst`.
+/// e.g. `4x4-stm-fringe-standard.pdb.zst`, or with a `variant` for solvers that have a choice of
+/// PDBs, `<width>x<height>-<metric>-<solved state>-<move set>-<variant>.pdb.zst`.
 ///
 /// `solved_state` is the label the solver solves to. For projection solvers that is the target,
 /// even when a different prune target is used: prune targets are fixed per registration, and
 /// changing one requires a `SOLVER_VERSION` bump, which moves the whole cache to a new directory.
-fn pdb_file_name(size: Size, metric: Metric, solved_state: &str) -> String {
+fn pdb_file_name(size: Size, metric: Metric, solved_state: &str, variant: Option<&str>) -> String {
     format!(
-        "{w}x{h}-{metric}-{solved_state}-{MOVE_SET}.pdb.zst",
+        "{w}x{h}-{metric}-{solved_state}-{MOVE_SET}{variant}.pdb.zst",
         w = size.width(),
         h = size.height(),
         metric = metric.pdb_file_name(),
+        variant = variant.map_or_else(String::new, |v| format!("-{v}")),
     )
 }
 
@@ -190,7 +196,19 @@ impl<'a> PdbPaths<'a> {
         solved_state: &str,
         owner: &'static str,
     ) -> Option<PathBuf> {
-        let name = pdb_file_name(size, metric, solved_state);
+        self.variant_path(size, metric, solved_state, None, owner)
+    }
+
+    /// Like [`Self::path`], for one of a solver's choice of PDBs, named by `variant`.
+    fn variant_path(
+        &mut self,
+        size: Size,
+        metric: Metric,
+        solved_state: &str,
+        variant: Option<&str>,
+        owner: &'static str,
+    ) -> Option<PathBuf> {
+        let name = pdb_file_name(size, metric, solved_state, variant);
 
         let previous = *self.owners.entry(name.clone()).or_insert(owner);
         assert_eq!(
@@ -360,21 +378,22 @@ pub struct Solver {
 
 impl Solver {
     /// Creates a solver that caches PDBs in the user's cache directory, first deleting the caches
-    /// of older versions if this version hasn't used the cache yet. With `show_pdb_build`,
-    /// progress is printed to stderr while PDBs are built.
-    pub fn new(show_pdb_build: bool) -> Self {
+    /// of older versions if this version hasn't used the cache yet. `options` choose the 4x4 STM
+    /// solver, and whether progress is printed to stderr while PDBs are built.
+    pub fn new(options: PdbOptions) -> Self {
         let cache_root = cache_root();
         if let Some(cache_root) = &cache_root {
             remove_old_caches(cache_root);
         }
 
-        Self::with_pdb_dir(cache_root.map(|r| pdb_dir(&r)).as_deref(), show_pdb_build)
+        Self::with_pdb_dir(cache_root.map(|r| pdb_dir(&r)).as_deref(), options)
     }
 
     /// Creates a solver that caches PDBs in `pdb_dir`, or doesn't cache them at all if `pdb_dir`
-    /// is `None`. The directory is only created when a PDB is first saved. With `show_pdb_build`,
-    /// progress is printed to stderr while PDBs are built.
-    pub fn with_pdb_dir(pdb_dir: Option<&Path>, show_pdb_build: bool) -> Self {
+    /// is `None`. The directory is only created when a PDB is first saved. `options` choose the
+    /// 4x4 STM solver, and whether progress is printed to stderr while PDBs are built.
+    pub fn with_pdb_dir(pdb_dir: Option<&Path>, options: PdbOptions) -> Self {
+        let show_pdb_build = options.show_pdb_build;
         let mut this = Self {
             solvers: HashMap::new(),
             remaps: Vec::new(),
@@ -383,7 +402,9 @@ impl Solver {
         let mut pdb_paths = PdbPaths::new(pdb_dir);
         let row_grids = LabelType::RowGrids.pdb_file_name();
 
-        macro_rules! small {
+        // A solver whose PDB is loaded from `$pdb_file_path` (checking its hash), or built and
+        // saved there if it can't be loaded.
+        macro_rules! cached_pdb_solver {
             ($pdb_file_path:expr, $pdb_ty:ty, $solver_ty:ty) => {{
                 let pdb_file_path = $pdb_file_path.clone();
 
@@ -432,13 +453,13 @@ impl Solver {
                     size,
                     LabelType::RowGrids,
                     Metric::Stm,
-                    small!(file_name_stm, PdbStm, SolverStm),
+                    cached_pdb_solver!(file_name_stm, PdbStm, SolverStm),
                 );
                 this.register(
                     size,
                     LabelType::RowGrids,
                     Metric::Mtm,
-                    small!(file_name_mtm, PdbMtm, SolverMtm),
+                    cached_pdb_solver!(file_name_mtm, PdbMtm, SolverMtm),
                 );
 
                 // The small solvers also solve the transposed size, so share one solver (and one
@@ -468,14 +489,64 @@ impl Solver {
 
         // 4x4 STM and MTM
 
-        this.register(
-            Size::new(4, 4).unwrap(),
-            LabelType::RowGrids,
-            Metric::Stm,
-            Solver4x4Stm::default,
-        );
-
         let size = Size::new(4, 4).unwrap();
+
+        {
+            use slidy::solver::size4x4::stm::pdb::{self, Pdb as _};
+
+            // Huge's tables need a 64-bit address space.
+            #[cfg(not(target_pointer_width = "64"))]
+            let pdb_4x4_stm = if options.solver == Pdb4x4Stm::Huge {
+                eprintln!(
+                    "warning: the huge 4x4 STM solver needs a 64-bit target, using large instead"
+                );
+                Pdb4x4Stm::Large
+            } else {
+                options.solver
+            };
+            #[cfg(target_pointer_width = "64")]
+            let pdb_4x4_stm = options.solver;
+
+            let path = pdb_paths.variant_path(
+                size,
+                Metric::Stm,
+                row_grids,
+                Some(pdb_4x4_stm.pdb_file_name()),
+                "4x4 STM solver",
+            );
+            let (label, metric) = (LabelType::RowGrids, Metric::Stm);
+
+            match pdb_4x4_stm {
+                Pdb4x4Stm::Small => this.register(
+                    size,
+                    label,
+                    metric,
+                    cached_pdb_solver!(path, pdb::Small, Solver4x4StmSmall),
+                ),
+                Pdb4x4Stm::Medium => this.register(
+                    size,
+                    label,
+                    metric,
+                    cached_pdb_solver!(path, pdb::Medium, Solver4x4StmMedium),
+                ),
+                Pdb4x4Stm::Large => this.register(
+                    size,
+                    label,
+                    metric,
+                    cached_pdb_solver!(path, pdb::Large, Solver4x4StmLarge),
+                ),
+                #[cfg(target_pointer_width = "64")]
+                Pdb4x4Stm::Huge => this.register(
+                    size,
+                    label,
+                    metric,
+                    cached_pdb_solver!(path, pdb::Huge, Solver4x4StmHuge),
+                ),
+                #[cfg(not(target_pointer_width = "64"))]
+                Pdb4x4Stm::Huge => unreachable!("replaced by Large above"),
+            }
+        }
+
         let pdb_file_path_4x4_mtm = pdb_paths.path(size, Metric::Mtm, row_grids, "4x4 MTM solver");
         this.register(size, LabelType::RowGrids, Metric::Mtm, move || {
             read_compressed_pdb(pdb_file_path_4x4_mtm.as_deref())
@@ -963,6 +1034,8 @@ fn fallback_solver(context: SolverContext) -> Box<dyn SolverT<Puzzle, Context = 
 mod tests {
     use std::str::FromStr as _;
 
+    use clap::ValueEnum as _;
+
     use super::*;
 
     #[test]
@@ -1031,7 +1104,7 @@ mod tests {
     #[test]
     fn pdb_file_names() {
         let name = |w, h, metric, solved_state| {
-            pdb_file_name(Size::new(w, h).unwrap(), metric, solved_state)
+            pdb_file_name(Size::new(w, h).unwrap(), metric, solved_state, None)
         };
 
         assert_eq!(
@@ -1046,6 +1119,15 @@ mod tests {
                 LabelType::SplitSquareFringe.pdb_file_name()
             ),
             "4x4-stm-split-square-fringe-standard.pdb.zst"
+        );
+        assert_eq!(
+            pdb_file_name(
+                Size::new(4, 4).unwrap(),
+                Metric::Stm,
+                LabelType::RowGrids.pdb_file_name(),
+                Some(Pdb4x4Stm::Medium.pdb_file_name())
+            ),
+            "4x4-stm-row-grids-standard-medium.pdb.zst"
         );
     }
 
@@ -1080,7 +1162,13 @@ mod tests {
     #[test]
     fn registered_pdb_files_are_not_shared_between_formats() {
         // Registering every solver runs the `PdbPaths` checks without building any PDBs.
-        let _ = Solver::with_pdb_dir(None, false);
+        for solver in Pdb4x4Stm::value_variants() {
+            let options = PdbOptions {
+                solver: *solver,
+                ..PdbOptions::default()
+            };
+            let _ = Solver::with_pdb_dir(None, options);
+        }
     }
 
     #[test]
@@ -1229,7 +1317,7 @@ mod tests {
 
     #[test]
     fn transposed_small_sizes_share_a_solver() {
-        let mut solver = Solver::with_pdb_dir(None, false);
+        let mut solver = Solver::with_pdb_dir(None, PdbOptions::default());
         let key = |w, h, metric| SolverKey {
             size: Size::new(w, h).unwrap(),
             label: LabelType::RowGrids,

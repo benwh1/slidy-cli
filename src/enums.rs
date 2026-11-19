@@ -125,3 +125,30 @@ impl Metric {
         }
     }
 }
+
+/// The pattern database the 4x4 STM solver searches with. Bigger ones solve faster but take more
+/// memory and disk space, and longer to build the first time.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, ValueEnum)]
+pub enum Pdb4x4Stm {
+    /// 5.9 MB, builds in about a second.
+    Small,
+    /// 75 MB, builds in about 10 seconds. About 3 times as fast as small.
+    #[default]
+    Medium,
+    /// 1.27 GB, builds in about 2 minutes. About 7 times as fast as medium.
+    Large,
+    /// 17 GB, builds in about 40 minutes using up to 25 GB of memory (64-bit only). About twice
+    /// as fast as large.
+    Huge,
+}
+
+impl Pdb4x4Stm {
+    pub fn pdb_file_name(self) -> &'static str {
+        match self {
+            Self::Small => "small",
+            Self::Medium => "medium",
+            Self::Large => "large",
+            Self::Huge => "huge",
+        }
+    }
+}
