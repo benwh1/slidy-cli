@@ -299,6 +299,20 @@ pub enum Command {
         verbose: bool,
     },
 
+    #[clap(about = "Prints the size of a puzzle state")]
+    Size {
+        /// Puzzle state to measure. If omitted, states are read from stdin, one per line.
+        state: Option<Puzzle>,
+
+        /// Print only the width.
+        #[clap(short = 'W', long, conflicts_with = "height")]
+        width: bool,
+
+        /// Print only the height.
+        #[clap(short = 'H', long)]
+        height: bool,
+    },
+
     #[clap(about = "Prints a sub-algorithm between two moves")]
     Slice {
         /// Algorithm to slice. If omitted, algorithms are read from stdin, one per line.
@@ -414,6 +428,7 @@ impl Command {
             | Self::PiecePosition { .. }
             | Self::Render { .. }
             | Self::Simplify { .. }
+            | Self::Size { .. }
             | Self::Slice { .. }
             | Self::Solvable { .. }
             | Self::SolvedState { .. }

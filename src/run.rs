@@ -450,6 +450,19 @@ impl Runner {
         Ok(())
     }
 
+    fn size(&mut self, state: &Puzzle, width: bool, height: bool) -> Result {
+        let size = state.size();
+        if width {
+            writeln!(self.out, "{}", size.width())?;
+        } else if height {
+            writeln!(self.out, "{}", size.height())?;
+        } else {
+            writeln!(self.out, "{size}")?;
+        }
+
+        Ok(())
+    }
+
     fn slice(&mut self, alg: &Algorithm, start: u64, end: Option<u64>, metric: Metric) -> Result {
         let end = end.unwrap_or_else(|| alg.len_metric(metric));
         let slice = alg
@@ -616,6 +629,11 @@ impl Runner {
                 metric,
                 verbose,
             } => try_fallible_fn(|a| self.simplify(a, metric, verbose), alg),
+            Command::Size {
+                state,
+                width,
+                height,
+            } => try_fallible_fn(|s| self.size(s, width, height), state),
             Command::Slice {
                 alg,
                 start,
