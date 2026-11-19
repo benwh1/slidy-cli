@@ -23,13 +23,18 @@ pub enum Command {
 
         /// Print the state before the algorithm and after every move, one per line, instead of
         /// only the final state. When several are traced, they are separated by blank lines.
-        #[clap(short, long)]
-        trace: bool,
-
-        /// What counts as a move for --trace: one tile moving one space (stm), or any number of
-        /// tiles moving in a line (mtm).
-        #[clap(short, long, value_enum, default_value_t = Metric::Stm, requires = "trace")]
-        metric: Metric,
+        ///
+        /// The metric decides what counts as a move: one tile moving one space (stm, the default),
+        /// or any number of tiles moving in a line (mtm).
+        #[clap(
+            short,
+            long,
+            value_enum,
+            value_name = "METRIC",
+            num_args = 0..=1,
+            default_missing_value = "stm"
+        )]
+        trace: Option<Metric>,
     },
 
     #[clap(about = "Applies algorithms to the solved state")]

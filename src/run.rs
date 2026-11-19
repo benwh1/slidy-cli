@@ -509,18 +509,10 @@ impl Runner {
             .is_some_and(|pdb| pdb.show_pdb_build);
 
         match args.command {
-            Command::Apply {
-                state,
-                alg,
-                trace,
-                metric,
-            } => {
-                let mut apply = |state: &mut Puzzle, alg: &Algorithm| {
-                    if trace {
-                        self.apply_traced(state, alg, metric)
-                    } else {
-                        self.apply(state, alg)
-                    }
+            Command::Apply { state, alg, trace } => {
+                let mut apply = |state: &mut Puzzle, alg: &Algorithm| match trace {
+                    Some(metric) => self.apply_traced(state, alg, metric),
+                    None => self.apply(state, alg),
                 };
 
                 match (state, alg) {
@@ -897,8 +889,33 @@ mod tests {
 
     #[test]
     fn cli_apply_trace() {
-        assert!(parse_args(&["apply", "-a", "R", "--trace", "--metric", "mtm"]).is_ok());
-        assert!(parse_args(&["apply", "-a", "R", "--metric", "mtm"]).is_err());
+        let trace = |args: &[&str]| match parse_args(&[&["apply", "-a", "R"], args].concat()) {
+            Ok(Args {
+                command: Command::Apply { trace, .. },
+            }) => Ok(trace),
+            Ok(args) => panic!("parsed as {args:?}"),
+            Err(e) => Err(e.kind()),
+        };
+
+        assert_eq!(trace(&[]), Ok(None));
+        assert_eq!(trace(&["--trace"]), Ok(Some(Metric::Stm)));
+        assert_eq!(trace(&["--trace", "stm"]), Ok(Some(Metric::Stm)));
+        assert_eq!(trace(&["--trace", "mtm"]), Ok(Some(Metric::Mtm)));
+        assert_eq!(trace(&["--trace=mtm"]), Ok(Some(Metric::Mtm)));
+        assert_eq!(trace(&["-t", "mtm"]), Ok(Some(Metric::Mtm)));
+        assert_eq!(
+            trace(&["--trace", "-s", "1 2/3 0"]),
+            Ok(Some(Metric::Stm)),
+            "a following option isn't taken as the metric"
+        );
+        assert_eq!(
+            trace(&["--trace", "foo"]),
+            Err(clap::error::ErrorKind::InvalidValue)
+        );
+        assert_eq!(
+            trace(&["--metric", "mtm"]),
+            Err(clap::error::ErrorKind::UnknownArgument)
+        );
     }
 
     #[test]
