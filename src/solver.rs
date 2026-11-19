@@ -21,13 +21,13 @@ use slidy::{
         sliding_puzzle::SlidingPuzzle as _,
     },
     solver::{
+        Solver4x4Mtm, Solver4x4StmLarge, Solver4x4StmMedium, Solver4x4StmSmall,
         config::{PdbConfig, SolverConfig},
         generic_solver::GenericSolver,
         heuristic::{manhattan::ManhattanDistance, mtm::MtmHeuristic},
         projection::{pdb::Pdb as ProjectionPdb, solver::Solver as ProjectionSolver},
         solver::{Solver as SolverT, SolverError},
         statistics::PdbIterationStats,
-        Solver4x4Mtm, Solver4x4StmLarge, Solver4x4StmMedium, Solver4x4StmSmall,
     },
 };
 

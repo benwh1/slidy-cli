@@ -6,7 +6,7 @@ use std::{
 
 use clap::CommandFactory as _;
 use clap_complete::aot::{self, Shell};
-use rand::{rngs::Xoshiro256PlusPlus, Rng, SeedableRng as _};
+use rand::{Rng, SeedableRng as _, rngs::Xoshiro256PlusPlus};
 use slidy::{
     algorithm::{algorithm::Algorithm, r#move::r#move::Move},
     puzzle::{
@@ -20,7 +20,7 @@ use slidy::{
     },
     solver::{
         config::SolverConfig,
-        heuristic::{manhattan::ManhattanDistance, Heuristic as _},
+        heuristic::{Heuristic as _, manhattan::ManhattanDistance},
         solver::Solver as _,
     },
 };
